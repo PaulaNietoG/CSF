@@ -1,0 +1,23 @@
+name: CSF
+output_dir: ../public
+navbar:
+  title: CSF
+  left:
+  - text: Home
+    href: index.html
+  - text: QC
+    href: 00_CSF_QC_cellranger.html
+  - text: Filtering
+    href: 01_filtering.html
+  - text: Preliminary
+    href: 02_CSF_preliminary_annotation.html
+  right:
+  - icon: fab fa-gitlab
+    text: Source code
+    href: https://gitlab.com/nietogarciapaula/CSF
+output:
+  workflowr::wflow_html:
+    toc: true 
+    number_sections: true  
+    theme: united  
+    highlight: tango 
