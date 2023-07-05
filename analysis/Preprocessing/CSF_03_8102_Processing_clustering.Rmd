@@ -196,8 +196,8 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 
 ```{r eval = FALSE}
 Idents(data) <- "seurat_clusters"
-new.cluster.ids <- c("T cells", "T cells", "T cells", "Myeloid", "pDC", "B cells", "T cells", "T cells", "Myeloid", "Myeloid", "DC3")
-names(new.cluster.ids) <- c(0:10)
+new.cluster.ids <- c("B cells", "T cells", "T cells", "T cells", "B cells", "B cells", "B cells", "T cells", "Myeloid", "T cells - NK", "Plasma cells", "Proliferative", "DC", "pDC")
+names(new.cluster.ids) <- c(0:13)
 data <- RenameIdents(data, new.cluster.ids)
 data$annot <- Idents(data)
 data <- subset(data, annot %in% c("doublets", "bad quality", "RBC"), invert = TRUE)
@@ -305,7 +305,7 @@ data$sample <- sample
 data$annot_2 <- paste(data$annot, data$RNA_snn_res.1)
 ```
 
-```{r plot selected resolution}
+```{r plot high resolution}
 # UMAP with selected resolution
 DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome()))
 ```
@@ -318,10 +318,10 @@ markers <- FindAllMarkers(
 )
 
 # save file
-saveRDS(markers, glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res{res}.rds"))
+saveRDS(markers, glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res1.rds"))
 # write to excel file
 openxlsx::write.xlsx(split(markers, markers$cluster), 
-                     file = glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res{res}.xlsx"),
+                     file = glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res1.xlsx"),
                      overwrite = TRUE)
 ```
 
@@ -450,3 +450,59 @@ merge(t1, t2) %>%
 <a href="#top">Back to top</a>
 
 ****
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("STAT6"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  ncol = 2,
+  pt.size = 1
+  )
+```
+
+```{r fig.width=20}
+DotPlot(data,
+        group.by = "RNA_snn_res.0.3",
+        features = c("TNFRSF14", "CREBBP", "B2M", "BCL2", "SOCS1", "EZH1", "SGK1", "IRF8", "EBF1", "GNA13", "CD19", "MS4A1", "CDKN2A", "DAZAP1", "SPIB", "ETV6", "CD79B", "HLA-A", "IRF2BP2", "MIR17HG", "MALT1", "BCL6", "REL", "STAT6"),
+        ) +
+  RotatedAxis() +
+  scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("CD19", "MS4A1", "MYC", "IRF4", "BCL2", "BCL6"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  ncol = 3,
+  pt.size = 1
+  )
+```
+
+```{r fig.width=20}
+DotPlot(data,
+        group.by = "RNA_snn_res.0.3",
+        features = c("CD19", "MS4A1", "MYC", "IRF4", "BCL2", "BCL6"),
+        cols = "RdYlBu"
+        ) +
+  RotatedAxis() 
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("IGKL", "IGKC"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```

@@ -462,3 +462,25 @@ merge(t1, t2) %>%
 <a href="#top">Back to top</a>
 
 ****
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("EGFR", "ALK", "KRAS", "CEACAM5", "PTPRC"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r}
+DotPlot(data,
+        group.by = "annot_2",
+        features = c("EGFR", "ALK", "KRAS", "CEACAM5", "PTPRC"),
+        ) +
+  RotatedAxis() +
+  scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
+```
+

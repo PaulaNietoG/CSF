@@ -195,8 +195,8 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 
 ```{r eval = FALSE}
 Idents(data) <- "seurat_clusters"
-new.cluster.ids <- c("T cells", "T cells", "T cells", "Myeloid", "pDC", "B cells", "T cells", "T cells", "Myeloid", "Myeloid", "DC3")
-names(new.cluster.ids) <- c(0:10)
+new.cluster.ids <- c("T cells", "B cells", "T cells", "Myeloid", "T cells", "B cells", "T cells - NK", "Tumor", "Proliferative", "Plasma B cells", "DC1", "pDC", "Fibroblasts")
+names(new.cluster.ids) <- c(0:12)
 data <- RenameIdents(data, new.cluster.ids)
 data$annot <- Idents(data)
 data <- subset(data, annot %in% c("doublets", "bad quality", "RBC"), invert = TRUE)
@@ -318,14 +318,15 @@ markers <- FindAllMarkers(
 )
 
 # save file
-saveRDS(markers, glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res{res}.rds"))
+saveRDS(markers, glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res1.rds"))
 # write to excel file
 openxlsx::write.xlsx(split(markers, markers$cluster), 
-                     file = glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res{res}.xlsx"),
+                     file = glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res1.xlsx"),
                      overwrite = TRUE)
 ```
 
 ```{r eval = FALSE}
+data <- subset(data, annot_2 %in% c("T cells 21", "T cells 11"), invert = TRUE)
 # save annotated object
 saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
 ```

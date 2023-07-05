@@ -196,8 +196,8 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 
 ```{r eval = FALSE}
 Idents(data) <- "seurat_clusters"
-new.cluster.ids <- c("T cells", "T cells", "T cells", "Myeloid", "pDC", "B cells", "T cells", "T cells", "Myeloid", "Myeloid", "DC3")
-names(new.cluster.ids) <- c(0:10)
+new.cluster.ids <- c("Macrophages", "Macrophages", "DC", "T cells", "Monocytes", "bad quality", "T cells", "Macrophages", "T cells", "bad quality", "Proliferative", "DC", "T cells", "Tumor cells", "Fibroblasts", "Tumor cells")
+names(new.cluster.ids) <- c(0:15)
 data <- RenameIdents(data, new.cluster.ids)
 data$annot <- Idents(data)
 data <- subset(data, annot %in% c("doublets", "bad quality", "RBC"), invert = TRUE)
@@ -305,7 +305,7 @@ data$sample <- sample
 data$annot_2 <- paste(data$annot, data$RNA_snn_res.1)
 ```
 
-```{r plot selected resolution}
+```{r plot high resolution}
 # UMAP with selected resolution
 DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome()))
 ```
@@ -318,14 +318,15 @@ markers <- FindAllMarkers(
 )
 
 # save file
-saveRDS(markers, glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res{res}.rds"))
+saveRDS(markers, glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res1.rds"))
 # write to excel file
 openxlsx::write.xlsx(split(markers, markers$cluster), 
-                     file = glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res{res}.xlsx"),
+                     file = glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res1.xlsx"),
                      overwrite = TRUE)
 ```
 
 ```{r eval = FALSE}
+data <- subset(data, annot_2 %in% c("DC 0", "DC 10", "DC 4", "Macrophages 5", "Macrophages 6", "Macrophages 9", "Proliferative 0", "Tumor cells 3"), invert = TRUE)
 # save annotated object
 saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
 ```
@@ -450,3 +451,23 @@ merge(t1, t2) %>%
 <a href="#top">Back to top</a>
 
 ****
+
+```{r eval = FALSE}
+FeaturePlot(
+  data,
+  features = c("EGFR", "ALK", "KRAS", "CEACAM5", "PTPRC"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r eval = FALSE}
+DotPlot(data,
+        features = c("EPCAM", "EGFR", "ALK", "KRAS", "CEACAM5", "PTPRC"),
+        ) +
+  RotatedAxis() +
+  scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
+```

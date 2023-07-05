@@ -196,8 +196,8 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 
 ```{r eval = FALSE}
 Idents(data) <- "seurat_clusters"
-new.cluster.ids <- c("T cells", "T cells", "T cells", "Myeloid", "pDC", "B cells", "T cells", "T cells", "Myeloid", "Myeloid", "DC3")
-names(new.cluster.ids) <- c(0:10)
+new.cluster.ids <- c("Monocytes", "Melanoma tumor cells", "T cells", "Macrophages", "Monocytes", "Monocytes", "DC", "Tumor cells", "Plasma B cells")
+names(new.cluster.ids) <- c(0:8)
 data <- RenameIdents(data, new.cluster.ids)
 data$annot <- Idents(data)
 data <- subset(data, annot %in% c("doublets", "bad quality", "RBC"), invert = TRUE)
@@ -305,7 +305,7 @@ data$sample <- sample
 data$annot_2 <- paste(data$annot, data$RNA_snn_res.1)
 ```
 
-```{r plot selected resolution}
+```{r plot high resolution}
 # UMAP with selected resolution
 DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome()))
 ```

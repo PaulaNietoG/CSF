@@ -23,13 +23,13 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
                       fig.align = "center")
 ```
 
-# PLEURA cellranger QC
+# CSF cellranger QC
 
 ## Objective
 
 We are going to perform a quality control (QC) analysis of the mapping results obtained by running [cellranger version 7.0.0](%22https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/what-is-cell-ranger%22).
 
-We will pull together all the libraries from all the PLEURA subprojects.
+We will pull together all the libraries from all the CSF subprojects.
 
 ```{r warning = FALSE, message = FALSE}
 library(tidyverse)
@@ -47,33 +47,28 @@ library(RColorBrewer)
 # set path depending if on cluster or local
 root_dir <- ifelse(
   grepl(dirname(getwd()), pattern = "/scratch/"),
-  "/scratch/devel/pnieto/projects/", #tre statement
-  "S:/projects/" # false statement
+  "/scratch/devel/pnieto/projects", #true statement
+  "S:/projects" # false statement
 )
 # name of the project directory
-proj_dir <- glue::glue("{root_dir}PLEURA/")
+proj_dir <- glue::glue("{root_dir}/CSF")
 
 # data to load (preprocessed raw objects)
-data_dir <- glue("{proj_dir}data/")
+data_dir <- glue("{proj_dir}/data")
 # output path to save data from this step (create dir if it doesn't exist)
-out_path <- glue::glue("{proj_dir}output/") %T>%
+out_path <- glue::glue("{proj_dir}/output") %T>%
   dir.create()
 ```
 
 ```{r}
-# get subprojects in cluster data path
-subprojects <- list.dirs(
-  path = data_dir, 
-  full.names = FALSE, 
-  recursive = FALSE
-  ) %>% 
-  grep(pattern = "^SCGRES|DOCT", value = TRUE)
+# get subprojects
+subprojects <- c("CSF_01", "CSF_02", "CSF_03")
 ```
 
 ```{r}
 # Load metadata for the subprojects
 metadata <- purrr::map(subprojects, function(subproj){
-  read.csv(glue("{data_dir}{subproj}/metadata.csv"))
+  read.csv(glue("{data_dir}/{subproj}/metadata.csv"))
 })
 metadata <- bind_rows(metadata)
 ```
@@ -84,10 +79,10 @@ cellranger_metrics <- purrr::map(subprojects, function(subproj){
   
   print(subproj)
   
-  purrr::map(list.dirs(path = glue("{data_dir}{subproj}/jobs"), full.names = FALSE, recursive = FALSE), function(lib){
+  purrr::map(list.dirs(path = glue("{data_dir}/{subproj}/jobs"), full.names = FALSE, recursive = FALSE), function(lib){
     
     print(lib)
-    cr <- read.csv(glue("{data_dir}{subproj}/jobs/{lib}/{lib}/outs/per_sample_outs/{lib}/metrics_summary.csv"), dec = c(".", ","))
+    cr <- read.csv(glue("{data_dir}/{subproj}/jobs/{lib}/{lib}/outs/per_sample_outs/{lib}/metrics_summary.csv"), dec = c(".", ","))
     cr$Subproject <- subproj
     cr$GemID <- lib
     cr
@@ -312,8 +307,7 @@ gg_qc_map <- purrr::map(qc_map_vars, function(var) {
           strip.placement = "outside",
           strip.background = element_rect(colour = NA),
           legend.position = "none") +
-    scale_fill_manual(values=as.vector(pals::polychrome())) +
-    ylim(c(0, 25))
+    scale_fill_manual(values=as.vector(pals::polychrome())) 
 })
 patchwork::wrap_plots(gg_qc_map, nrow = 1)
 ```
@@ -404,6 +398,14 @@ cellranger_metrics_vdj_b_df <- cellranger_metrics[cellranger_metrics$Library.Typ
   unique() %>% 
   pivot_wider(names_from = "Metric.Name", values_from = "Metric.Value", id_cols = c("Subproject", "GemID"))
 
+colnames(cellranger_metrics_vdj_b_df) <- str_replace_all(colnames(cellranger_metrics_vdj_b_df), pattern = " ", replacement = "_")
+colnames(cellranger_metrics_vdj_b_df) <- str_replace_all(colnames(cellranger_metrics_vdj_b_df), pattern = "\\(", replacement = "_")
+colnames(cellranger_metrics_vdj_b_df) <- str_replace_all(colnames(cellranger_metrics_vdj_b_df), pattern = "\\)", replacement = "_")
+colnames(cellranger_metrics_vdj_b_df) <- str_replace_all(colnames(cellranger_metrics_vdj_b_df), pattern = "-", replacement = "_")
+colnames(cellranger_metrics_vdj_b_df) <- str_replace_all(colnames(cellranger_metrics_vdj_b_df), pattern = ",", replacement = "_")
+colnames(cellranger_metrics_vdj_b_df) <- str_replace_all(colnames(cellranger_metrics_vdj_b_df), pattern = "__", replacement = "_")
+
+
 if (nrow(cellranger_metrics_vdj_b_df) == 0) {
   print("BCR not present")
 } else {
@@ -436,7 +438,6 @@ if (nrow(cellranger_metrics_vdj_b_df) == 0) {
 ```
 
 
-
 ## Mapping QC
 Next, we will check the quality of the V(D)J mapping step performed by `cellranger 7.0.0` across libraries. To do so, we will compare the percentage of reads mapped to any germline V(D)J gene segment, and within these mapped reads, the amount of reads mapped IGH, IGK and IGL germline gene segment. 
 
@@ -462,14 +463,14 @@ if (nrow(cellranger_metrics_vdj_b_df) == 0) {
             strip.background = element_rect(colour = NA),
             legend.position = "none")
   })
-  ggarrange(plotlist = gg_qc_map, nrow = 1, ncol = 3)
+  patchwork::wrap_plots(gg_qc_map, nrow = 1)
 }
 ```
 
-<!-- ## V(D)J Expression -->
-<!-- Here, we will assess the median number of UMIs assigned to a IGH/IGK/IGL contig per cell. Low values for any of the three parameters can indicate cells with extremely low IGH/IGK/IGL expression or poor cell quality, among others. -->
+## V(D)J Expression
+Here, we will assess the median number of UMIs assigned to a IGH/IGK/IGL contig per cell. Low values for any of the three parameters can indicate cells with extremely low IGH/IGK/IGL expression or poor cell quality, among others.
 
-```{r eval =FALSE}
+```{r}
 if (nrow(cellranger_metrics_vdj_b_df) == 0) {
   print("BCR not present")
 } else {
@@ -491,27 +492,27 @@ if (nrow(cellranger_metrics_vdj_b_df) == 0) {
 }
 ```
 
-<!-- ## V(D)J Annotation -->
-<!-- Now, we will check the V(D)J annotation for the studied samples. To better interpret the obtained results, we will consider the information given in the cellranger web summary file. We will assess the fraction of cell-associated barcodes (with at least...), that are the following ones: -->
+## V(D)J Annotation
+Now, we will check the V(D)J annotation for the studied samples. To better interpret the obtained results, we will consider the information given in the cellranger web summary file. We will assess the fraction of cell-associated barcodes (with at least...), that are the following ones:
 
-<!--   * Cells With IGH/IGK/IGL Contig: one IGH/IGK/IGL contig annotated as a full or partial V(D)J gene. -->
+  * Cells With IGH/IGK/IGL Contig: one IGH/IGK/IGL contig annotated as a full or partial V(D)J gene.
 
-<!-- * Cells With CDR3-annotated IGH/IGK/IGL Contig: one IGH/IGK/IGL contig where a CDR3 was detected. -->
+* Cells With CDR3-annotated IGH/IGK/IGL Contig: one IGH/IGK/IGL contig where a CDR3 was detected.
 
-<!-- * Cells With Productive IGH/IGK/IGL Contig: one contig that spans the 5' end of the V region to the 3' end of the J region for IGH/IGK/IGL, has a start codon in the expected part of the V sequence, has an in-frame CDR3, and has no stop codons in the aligned V-J region. -->
+* Cells With Productive IGH/IGK/IGL Contig: one contig that spans the 5' end of the V region to the 3' end of the J region for IGH/IGK/IGL, has a start codon in the expected part of the V sequence, has an in-frame CDR3, and has no stop codons in the aligned V-J region.
 
-<!-- * Cells With Productive V-J Spanning Pair: one productive contig for each chain of the receptor pair. As well as the correspondent the number of cells with productive V-J Spanning Pair. -->
+* Cells With Productive V-J Spanning Pair: one productive contig for each chain of the receptor pair. As well as the correspondent the number of cells with productive V-J Spanning Pair.
 
-<!-- For all thre previous parameters, low values can indicate poor cell quality, low yield from the RT reaction, poor specificity of the V(D)J enrichment. Moreover, we will also check: -->
+For all thre previous parameters, low values can indicate poor cell quality, low yield from the RT reaction, poor specificity of the V(D)J enrichment. Moreover, we will also check:
 
-<!--   * Paired Clonotype Diversit Effective diversity of the paired clonotypes. It is computed as the Inverse Simpson Index of the clonotype frequencies. A value of 1 indicates a minimally diverse sample - only one distinct clonotype was detected, whereas a value equal to the estimated number of cells indicates a maximally diverse sample. -->
+  * Paired Clonotype Diversit Effective diversity of the paired clonotypes. It is computed as the Inverse Simpson Index of the clonotype frequencies. A value of 1 indicates a minimally diverse sample - only one distinct clonotype was detected, whereas a value equal to the estimated number of cells indicates a maximally diverse sample.
 
-```{r fig.width=14,eval =FALSE}
+```{r fig.width=14}
 if (nrow(cellranger_metrics_vdj_b_df) == 0) {
   print("BCR not present")
 } else {
   cellranger_metrics_vdj_b_df %>% 
-    select(1, 2, 12:17, 22, 23 ) %>% 
+    select(2:5,9,12,6,7,13) %>% 
     gt()  %>%
     tab_header(
       title = md("**V(D)J annotation**"),
@@ -555,8 +556,8 @@ print("GEX QC summary table")
 cellranger_metrics_gex_df
 print("VDJ-T QC summary table")
 cellranger_metrics_vdjT_df
-# print("VDJ-B QC summary table")
-# cellranger_metrics_vdjB_df
+print("VDJ-B QC summary table")
+cellranger_metrics_vdj_b_df
 ```
 
 <a href="#top">Back to top</a>

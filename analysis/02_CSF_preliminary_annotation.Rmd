@@ -10,8 +10,6 @@ output:
   html_document:
     self_contained: yes
     mode: selfcontained
-    toc: true # table of content true
-    number_sections: true  ## if you want number sections at each table header
     theme: united  # many options for theme, this one is my favorite.
     highlight: tango  # specifies the syntax highlighting style
 editor_options:

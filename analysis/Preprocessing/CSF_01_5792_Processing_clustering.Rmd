@@ -428,3 +428,61 @@ merge(t1, t2) %>%
 <a href="#top">Back to top</a>
 
 ****
+
+
+```{r eval = FALSE}
+FeaturePlot(
+  data,
+  features = c("PTPRN2", "DKK3", "EFNB3", "GRIN2A", "FGFR3", "EGFR", "GPR19", "DTR"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  ncol = 2,
+  pt.size = 1
+  )
+```
+
+```{r eval = FALSE, fig.width=20}
+DotPlot(data,
+        group.by = "annot_2",
+        features = c("MRC1", "PTPRN2", "DKK3", "EFNB3", "GRIN2A", "FGFR3", "EGFR", "GPR19", "HBEGF", "PTK2B", "DAP3"),
+        ) +
+  RotatedAxis() +
+  scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
+```
+
+```{r eval = FALSE}
+FeaturePlot(
+  data,
+  features = c("CD19", "MS4A1", "MYC", "IRF4", "BCL2", "BCL6"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  ncol = 3,
+  pt.size = 1
+  )
+```
+
+```{r eval = FALSE, fig.width=20}
+DotPlot(data,
+        group.by = "RNA_snn_res.0.3",
+        features = c("CD19", "MS4A1", "MYC", "IRF4", "BCL2", "BCL6"),
+        cols = "RdYlBu"
+        ) +
+  RotatedAxis() 
+```
+
+```{r eval = FALSE}
+FeaturePlot(
+  data,
+  group.by = "RNA_snn_res.1",
+  features = c("IGFBP2"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```

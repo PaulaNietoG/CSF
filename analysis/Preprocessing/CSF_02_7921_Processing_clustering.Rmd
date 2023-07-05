@@ -449,3 +449,46 @@ merge(t1, t2) %>%
 <a href="#top">Back to top</a>
 
 ****
+
+```{r eval = FALSE}
+FeaturePlot(
+  subset(data, annot == "B cells"),
+  features = c("STAT6"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  ncol = 2,
+  pt.size = 1
+  )
+```
+
+```{r eval = FALSE, fig.width=20}
+DotPlot(data,
+        # idents = "B cells 10",
+        features = c("TNFRSF14", "CREBBP", "B2M", "BCL2", "SOCS1", "EZH1", "SGK1", "IRF8", "EBF1", "GNA13", "CD19", "MS4A1", "CDKN2A", "DAZAP1", "SPIB", "ETV6", "CD79B", "HLA-A", "IRF2BP2", "MIR17HG", "MALT1", "BCL6", "REL", "STAT6"),
+        ) +
+  RotatedAxis() +
+  scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
+```
+
+```{r eval = FALSE}
+FeaturePlot(
+  data,
+  features = c("CD19", "MS4A1", "MYC", "IRF4", "BCL2", "BCL6"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  ncol = 3,
+  pt.size = 1
+  )
+```
+
+```{r eval = FALSE, fig.width=20}
+DotPlot(data,
+        features = c("CD19", "MS4A1", "MYC", "IRF4", "BCL2", "BCL6"),
+        cols = "RdYlBu"
+        ) +
+  RotatedAxis() 
+```
