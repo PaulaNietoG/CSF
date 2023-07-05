@@ -1,0 +1,40 @@
+---
+  title: "Convert from R to python using SeuratDisk"
+author: "Paula Nieto"
+date: "`r Sys.Date()`"
+output: html_document
+---
+  
+  ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Save Seurat as H5AD
+
+```{r}
+library(Seurat)
+library(SeuratDisk)
+
+data <- readRDS("data/CSF_01/output/02_processing_clustering/CSF_01_4608_annotated.rds")
+data <- DietSeurat(
+  object = data, 
+  counts = TRUE,
+  data = TRUE,
+  scale.data = FALSE,
+  assays = "RNA"
+)
+
+SaveH5Seurat(data, filename = "data/CSF_01/output/02_processing_clustering/CSF_01_4608_annotated.h5Seurat")
+Convert("data/CSF_01/output/02_processing_clustering/CSF_01_4608_annotated.h5Seurat", dest = "h5ad")
+```
+
+# Read H5AD into python
+
+You can also embed plots, for example:
+  
+```{python}
+import scanpy
+
+adata = scanpy.read_h5ad("data/CSF_01/output/02_processing_clustering/CSF_01_4608_annotated.h5ad")
+adata
+```
