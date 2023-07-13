@@ -1,9 +1,9 @@
 # This script runs inverCNV (https://github.com/broadinstitute/inferCNV/)
 
 # parameters
-subproject <- "CSF_01"
-patient <- "4839"
-ref_cell_type <- c("T cells 1", "T cells 4", "T cells 0")
+subproject <- "CSF_03"
+patient <- "3087"
+ref_cell_type <- c("T cells 7", "Macrophages 0", "DC 3", "T cells 9", "Macrophages 2")
 
 # Load packages
 library(Seurat)
@@ -24,8 +24,8 @@ root_dir <- ifelse(
 proj_dir <- glue::glue("{root_dir}/CSF")
 
 # output path to save data from this step (create dir if it doesn't exist)
-out_path <- glue::glue("{proj_dir}/data/{subproject}/output/03_inferCNV/{patient}_B_cell_subclusters") %T>%
-  dir.create()
+out_path <- glue::glue("{proj_dir}/data/{subproject}/output/03_inferCNV/{patient}") %T>%
+  dir.create(recursive = TRUE)
 
 # annotated object data path
 data_path <- glue("{proj_dir}/data/{subproject}/output/02_processing_clustering/{subproject}_{patient}_annotated.rds")
@@ -48,6 +48,9 @@ cutoff_infercnv <- 0.1 # recommended for 10x data
 # Load data
 print("Loading data...")
 seurat <- readRDS(data_path)
+table(seurat$annot_2) %>% as.data.frame() %>% arrange(Freq)
+sel <- table(seurat$annot_2) %>% as.data.frame() %>% arrange(Freq) %>% filter(Freq >= 5) %>% pull(Var1) %>% as.character()
+# seurat <- subset(seurat, annot_2 %in% sel)
 
 gene_order_file <- read_tsv(
   path_to_gene_order,

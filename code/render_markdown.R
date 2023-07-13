@@ -2,7 +2,7 @@ library(workflowr)
 library(rmarkdown)
 library(glue)
 
-subprojects <- c("CSF_01", "CSF_02", "CSF_03")
+subprojects <- c("CSF_01", "CSF_02", "CSF_03", "CSF_04")
 
 # QC
 purrr::map(subprojects, function(subproj){
@@ -52,10 +52,3 @@ dir.create("/scratch/devel/pnieto/projects/CSF/docs/00_CSF_QC_cellranger_files/f
 render("/scratch/devel/pnieto/projects/CSF/analysis/00_CSF_QC_cellranger.Rmd",
 	output_format = "html_document",
 	output_file = "/scratch/devel/pnieto/projects/CSF/docs/00_CSF_QC_cellranger.html")
-
-# test
-render(
-  "S:/projects/CSF/analysis/Preprocessing/CSF_01_4608_iSEE.Rmd",
-  output_format = "html_document",
-  output_file = "S:/projects/CSF/docs/CSF_01_4608_iSEE.html"
-)
