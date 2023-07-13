@@ -210,7 +210,7 @@ DimPlot(data, group.by = 'annot', pt.size = 1, label = TRUE, cols = pal) +
   NoLegend() +
   labs(
     title = "General Annotation",
-    caption = paste(unique(data$sample),unique(data$project))
+    caption = paste(unique(data$patient), unique(data$library),unique(data$project))
     )
 ```
 
@@ -307,7 +307,11 @@ data$annot_2 <- paste(data$annot, data$RNA_snn_res.1)
 
 ```{r plot high resolution}
 # UMAP with selected resolution
-DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome()))
+DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome())) +
+  labs(
+    title = "High Resolution Annotation",
+    caption = paste(unique(data$patient), unique(data$library),unique(data$project))
+    )
 ```
 
 ```{r eval = FALSE}
@@ -368,7 +372,7 @@ saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
 
 ```{r eval = doNextChunk, results='markup'}
 data@meta.data[, c("sample", "Frequency", "cloneType", "CTaa", "annot")] %>% 
-  filter(annot %in% c("T cells", "B cells")) %>% 
+  filter(annot %in% c("T cells", "T cells - NK", "B cells", "Plasma B cells")) %>% 
   unique() %>% 
   filter(!is.na(cloneType)) %>% 
   arrange(desc(Frequency)) %>% 
@@ -406,7 +410,7 @@ DimPlot(data, group.by = "cloneType", pt.size = 1) +
 "Number of clones (not cells!) per type and sample"
 df <- data@meta.data[, c("sample", "cloneType", "CTaa", "annot")] %>% 
   filter(!is.na(CTaa)) %>% 
-  filter(annot %in% c("T cells", "B cells"))
+  filter(annot %in% c("T cells", "T cells - NK", "B cells", "Plasma B cells"))
 rownames(df) <- NULL
 df <- unique(df)
 table(df[, c("sample", "cloneType", "annot")]) %>% 
@@ -425,10 +429,10 @@ table(df[, c("sample", "cloneType", "annot")]) %>%
 ```{r results='markup', eval = doNextChunk}
 "Percentage of T cells that have a TCR (TRUE) and don't have one (FALSE)."
 
-t1 <- table(!is.na(subset(data, annot == "T cells")$cloneType)) %>% as.data.frame()
+t1 <- table(!is.na(subset(data, annot %in% c("T cells", "T cells - NK", "B cells"))$cloneType)) %>% as.data.frame()
 colnames(t1) <- c("TCRs", "# Cells")
 
-t2 <- round((table(!is.na(subset(data, annot == "T cells")$cloneType))/dim(subset(data, annot == "T cells"))[2])*100,2) %>% as.data.frame()
+t2 <- round((table(!is.na(subset(data, annot %in% c("T cells", "T cells - NK"))$cloneType))/dim(subset(data, annot %in% c("T cells", "T cells - NK")))[2])*100,2) %>% as.data.frame()
 colnames(t2) <- c("TCRs", "% Cells")
 
 merge(t1, t2) %>% 
@@ -438,10 +442,10 @@ merge(t1, t2) %>%
 ```{r results='markup', eval = doNextChunk}
 "Percentage of B cells that have a BCR (TRUE) and don't have one (FALSE)."
 
-t1 <- table(!is.na(subset(data, annot == "B cells")$cloneType)) %>% as.data.frame()
+t1 <- table(!is.na(subset(data, annot %in% c("B cells", "Plasma B cells"))$cloneType)) %>% as.data.frame()
 colnames(t1) <- c("BCRs", "# Cells")
 
-t2 <- round((table(!is.na(subset(data, annot == "B cells")$cloneType))/dim(subset(data, annot == "B cells"))[2])*100,2) %>% as.data.frame()
+t2 <- round((table(!is.na(subset(data, annot %in% c("B cells", "Plasma B cells"))$cloneType))/dim(subset(data, annot %in% c("B cells", "Plasma B cells")))[2])*100,2) %>% as.data.frame()
 colnames(t2) <- c("BCRs", "% Cells")
 
 merge(t1, t2) %>% 

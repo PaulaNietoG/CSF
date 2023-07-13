@@ -337,6 +337,11 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 data <- subset(data, annot_2 == "T cells 8", invert =  TRUE)
 # save annotated object
 saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
+
+data$Index <- str_replace(rownames(data@meta.data), pattern = "CSF_01_4839_", replacement = "")
+dir.create(glue("{proj_dir}/output/05_SComatic/{library}/"), recursive = TRUE)
+data@meta.data[,c("Index", "annot_2")] %>% 
+  write_delim(., file = glue("{proj_dir}/output/05_SComatic/{library}/barcode_annotations.tsv"), delim = "\t", col_names = TRUE)
 ```
 
 ## Cancer Hallmarks

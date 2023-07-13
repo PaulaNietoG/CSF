@@ -210,7 +210,7 @@ DimPlot(data, group.by = 'annot', pt.size = 1, label = TRUE, cols = pal) +
   NoLegend() +
   labs(
     title = "General Annotation",
-    caption = paste(unique(data$sample),unique(data$project))
+    caption = paste(unique(data$patient), unique(data$library),unique(data$project))
     )
 ```
 
@@ -306,7 +306,11 @@ data$annot_2 <- paste(data$annot, data$RNA_snn_res.1)
 
 ```{r plot high resolution}
 # UMAP with selected resolution
-DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome()))
+DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome())) +
+  labs(
+    title = "High Resolution Annotation",
+    caption = paste(unique(data$patient), unique(data$library),unique(data$project))
+    )
 ```
 
 ```{r eval = FALSE}

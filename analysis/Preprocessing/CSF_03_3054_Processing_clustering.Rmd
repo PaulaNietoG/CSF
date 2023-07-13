@@ -1,6 +1,6 @@
 ---
 title: "Processing and preliminary clustering"
-subtitle: "CSF_03 - patient:3054"
+subtitle: "CSF_03 - patient: 3054"
 author:
 - name: Paula Nieto
   affiliation: 
@@ -211,7 +211,7 @@ DimPlot(data, group.by = 'annot', pt.size = 1, label = TRUE, cols = pal) +
   NoLegend() +
   labs(
     title = "General Annotation",
-    caption = paste(unique(data$sample),unique(data$project))
+    caption = paste(unique(data$patient), unique(data$library),unique(data$project))
     )
 ```
 
@@ -307,7 +307,11 @@ data$annot_2 <- paste(data$annot, data$RNA_snn_res.1)
 
 ```{r plot high resolution}
 # UMAP with selected resolution
-DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome()))
+DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome())) +
+  labs(
+    title = "High Resolution Annotation",
+    caption = paste(unique(data$patient), unique(data$library),unique(data$project))
+    )
 ```
 
 ```{r eval = FALSE}
@@ -328,6 +332,13 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 ```{r eval = FALSE}
 # save annotated object
 saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
+
+dir.create(glue("{proj_dir}/output/05_SComatic/{library}/"), recursive = TRUE)
+data$Index <- paste0(str_replace(rownames(data@meta.data), pattern = glue("{proj_name}_{library}_"), replacement = ""), "-1")
+
+data$Cell_type <- str_replace_all(data$annot_2, pattern = " ", replacement = "_")
+data@meta.data[,c("Index", "Cell_type")] %>% 
+  write_delim(., file = glue("{proj_dir}/output/05_SComatic/{library}/barcode_annotations.tsv"), delim = "\t", col_names = TRUE)
 ```
 
 ## TCR/BCR
@@ -343,19 +354,33 @@ doNextChunk <- ("cloneType" %in% colnames(data@meta.data))
 ```
 
 ```{r eval = FALSE}
-# load data
+# TCR
 tcr <- read.csv(glue("{proj_dir}/jobs/{library}/{library}/outs/per_sample_outs/{library}/vdj_t/filtered_contig_annotations.csv"))
 
-combined <- combineTCR(tcr, 
+combined_tcr <- combineTCR(tcr, 
                 ID = library, 
                 samples = proj_name, 
                 cells ="T-AB")
 
 # rename to match sc
-combined[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
+combined_tcr[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined_tcr[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
+
+# BCR
+# bcr <- read.csv(glue("{proj_dir}/jobs/{library}/{library}/outs/per_sample_outs/{library}/vdj_b/filtered_contig_annotations.csv"))
+# 
+# combined_bcr <- combineBCR(bcr,
+#                 ID = library,
+#                 samples = proj_name,
+#                 threshold = 1
+#                 )
+# 
+# # rename to match sc
+# combined_bcr[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined_bcr[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
+# 
+# list.receptors <- c(combined_tcr, combined_bcr)
 
 data <- combineExpression(
-  combined, 
+  combined_tcr,
   data, 
   cloneCall="aa", 
   proportion = FALSE, 
@@ -434,7 +459,7 @@ merge(t1, t2) %>%
   DT::datatable(rownames = NULL, caption = paste(unique(data$sample),unique(data$project)))
 ```
 
-```{r results='markup', eval = doNextChunk}
+```{r results='markup', eval = FALSE}
 "Percentage of B cells that have a BCR (TRUE) and don't have one (FALSE)."
 
 t1 <- table(!is.na(subset(data, annot == "B cells")$cloneType)) %>% as.data.frame()
@@ -450,7 +475,6 @@ merge(t1, t2) %>%
 <a href="#top">Back to top</a>
 
 ****
-
 
 ```{r}
 FeaturePlot(
@@ -503,6 +527,28 @@ FeaturePlot(
   order = TRUE,
   label = TRUE,
   label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r fig.width=20}
+DotPlot(data,
+        group.by = "annot_2",
+        features = c("MYD88", "IGHM", "CD89A", "MS4A1"),
+        ) +
+  RotatedAxis() +
+  scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("MYD88", "IGHM", "CD89A", "MS4A1"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  ncol = 3,
   pt.size = 1
   )
 ```

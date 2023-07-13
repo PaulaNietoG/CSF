@@ -379,7 +379,7 @@ saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
 
 ```{r eval = doNextChunk, results='markup'}
 data@meta.data[, c("sample", "Frequency", "cloneType", "CTaa", "annot")] %>% 
-  filter(annot %in% c("T cells", "B cells")) %>% 
+  filter(annot %in% c("T cells", "B cells", "Plasma B cells")) %>% 
   unique() %>% 
   filter(!is.na(cloneType)) %>% 
   arrange(desc(Frequency)) %>% 
@@ -417,7 +417,7 @@ DimPlot(data, group.by = "cloneType", pt.size = 1) +
 "Number of clones (not cells!) per type and sample"
 df <- data@meta.data[, c("sample", "cloneType", "CTaa", "annot")] %>% 
   filter(!is.na(CTaa)) %>% 
-  filter(annot %in% c("T cells", "B cells"))
+  filter(annot %in% c("T cells", "B cells", "Plasma B cells"))
 rownames(df) <- NULL
 df <- unique(df)
 table(df[, c("sample", "cloneType", "annot")]) %>% 
@@ -449,10 +449,10 @@ merge(t1, t2) %>%
 ```{r results='markup', eval = doNextChunk}
 "Percentage of B cells that have a BCR (TRUE) and don't have one (FALSE)."
 
-t1 <- table(!is.na(subset(data, annot == "B cells")$cloneType)) %>% as.data.frame()
+t1 <- table(!is.na(subset(data, annot %in% c("B cells", "Plasma B cells"))$cloneType)) %>% as.data.frame()
 colnames(t1) <- c("BCRs", "# Cells")
 
-t2 <- round((table(!is.na(subset(data, annot == "B cells")$cloneType))/dim(subset(data, annot == "B cells"))[2])*100,2) %>% as.data.frame()
+t2 <- round((table(!is.na(subset(data, annot %in% c("B cells", "Plasma B cells"))$cloneType))/dim(subset(data, annot %in% c("B cells", "Plasma B cells")))[2])*100,2) %>% as.data.frame()
 colnames(t2) <- c("BCRs", "% Cells")
 
 merge(t1, t2) %>% 

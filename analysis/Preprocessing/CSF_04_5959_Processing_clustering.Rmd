@@ -1,22 +1,16 @@
 ---
 title: "Processing and preliminary clustering"
-subtitle: "CSF_03 - patient:8102"
+subtitle: "CSF_04 - patient:5959"
 author:
 - name: Paula Nieto
   affiliation: 
   - Centro Nacional de Análisis Genómico (CNAG)
   email: paula.nieto@cnag.crg.eu
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output:
+output: 
   html_document:
-    self_contained: yes
-    mode: selfcontained
-    toc: true # table of content true
-    number_sections: true  ## if you want number sections at each table header
-    theme: united  # many options for theme, this one is my favorite.
-    highlight: tango  # specifies the syntax highlighting style
-editor_options:
-  chunk_output_type: console
+    toc: true
+  toc_float: true
 ---
 
 ```{r setup, include=FALSE}
@@ -40,10 +34,10 @@ library(dittoSeq)
 
 ```{r set-params}
 root <- get_root_dir()
-proj_name <- "CSF_03" 
-library <- "8102" 
-patient <- "P10"
-sample <- "S10"
+proj_name <- "CSF_04" 
+library <- "5959"
+patient <- "P12"
+sample <- "S12"
 proj_dir <- glue("{root}/CSF/data/{proj_name}")
 data_dir <- glue("{proj_dir}/output/01_QC_filtering")
 out_dir <- glue("{proj_dir}/output/02_processing_clustering")
@@ -52,7 +46,7 @@ out_dir <- glue("{proj_dir}/output/02_processing_clustering")
 ```{r create-output-folder}
 # create output folder if it doesn't exist yet
 if (!file.exists(out_dir)) {
-  dir.create(out_dir)
+  dir.create(out_dir, recursive = TRUE)
 }
 ```
 
@@ -82,8 +76,6 @@ data <- data %>%
   RunUMAP(dims = 1:20) %>%
   FindNeighbors(dims = 1:20) %>%
   FindClusters(resolution = seq(from = 0.1, to = 1, by = 0.1))
-# save integrated object
-saveRDS(data, glue("{out_dir}/{proj_name}_{library}_integrated.rds"))
 ```
 
 ```{r all resolutions, fig.height=10, fig.width=10}
@@ -92,7 +84,7 @@ DimPlot(data, group.by = paste0("RNA_snn_res.", seq(from = 0.1, to = 1, by = 0.1
 
 ```{r set resolution}
 # set selected resolution
-res <- "0.3"
+res <- "1"
 ```
 
 ```{r fix clusters, eval = FALSE}
@@ -160,7 +152,8 @@ marker_genes <- c(
   "MKI67", # prolif
   "KLRB1", # NK
   "MS4A1", "CD79B", # B cells
-  "LILRA4" # pDC
+  "LILRA4", # pDC
+  "MLANA" # tumor cells/melanocytes
 )
 ```
 
@@ -169,6 +162,19 @@ Idents(data) <- paste0("RNA_snn_res.", res)
 FeaturePlot(
   data,
   features = marker_genes,
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 2,
+  ncol = 3,
+  pt.size = 1
+  )
+```
+
+```{r fig.width=10, fig.height=12}
+FeaturePlot(
+  data,
+  features = c("PDGFRA", "SOX2", "OLIG1", "NES", "GFAP", "S100B", "EGFR", "MBP"),
   cols = c("#ADD8E633", "#E46726"),
   order = TRUE,
   label = TRUE,
@@ -196,8 +202,8 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 
 ```{r eval = FALSE}
 Idents(data) <- "seurat_clusters"
-new.cluster.ids <- c("B cells", "T cells", "T cells", "T cells", "B cells", "B cells", "B cells", "T cells", "Myeloid", "T cells - NK", "Plasma cells", "Proliferative", "DC", "pDC")
-names(new.cluster.ids) <- c(0:13)
+new.cluster.ids <- c("Tumor cells", "bad quality", "Melanocytes", "Tumor cells", "Tumor cells", "Myeloid", "Tumor cells", "bad quality", "Myeloid", "T cells", "Proliferative", "bad quality", "Fibroblasts", "Endothelial", "T cells", "Myeloid", "Myeloid", "Endothelial")
+names(new.cluster.ids) <- c(0:17)
 data <- RenameIdents(data, new.cluster.ids)
 data$annot <- Idents(data)
 data <- subset(data, annot %in% c("doublets", "bad quality", "RBC"), invert = TRUE)
@@ -208,9 +214,10 @@ saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
 
 ```{r}
 DimPlot(data, group.by = 'annot', pt.size = 1, label = TRUE, cols = pal) +
+  NoLegend() +
   labs(
     title = "General Annotation",
-    caption = paste(unique(data$patient), unique(data$library),unique(data$project))
+    caption = paste(unique(data$sample),unique(data$project))
     )
 ```
 
@@ -298,6 +305,7 @@ merge(t1, t2) %>%
 # High-res annotation
 
 ```{r eval = FALSE}
+res <- "1"
 data$patient <- patient
 data$library <- library
 data$sample <- sample
@@ -306,11 +314,7 @@ data$annot_2 <- paste(data$annot, data$RNA_snn_res.1)
 
 ```{r plot high resolution}
 # UMAP with selected resolution
-DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome())) +
-  labs(
-    title = "High Resolution Annotation",
-    caption = paste(unique(data$patient), unique(data$library),unique(data$project))
-    )
+DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome()))
 ```
 
 ```{r eval = FALSE}
@@ -321,20 +325,158 @@ markers <- FindAllMarkers(
 )
 
 # save file
-saveRDS(markers, glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res1.rds"))
+saveRDS(markers, glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res{res}.rds"))
 # write to excel file
 openxlsx::write.xlsx(split(markers, markers$cluster), 
-                     file = glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res1.xlsx"),
+                     file = glue("{out_dir}/{proj_name}_{library}_general_cluster_markers_res{res}.xlsx"),
                      overwrite = TRUE)
 ```
 
 ```{r eval = FALSE}
-table(data$annot_2) %>% as.data.frame() %>% arrange(Freq)
-sel <- table(data$annot_2) %>% as.data.frame() %>% arrange(Freq) %>% filter(Freq >= 5) %>% pull(Var1) %>% as.character()
-data <- subset(data, annot_2 %in% sel)
-
+# remove artifact cluster with 2 cells
+data <- subset(data, annot_2 == "T cells 8", invert =  TRUE)
 # save annotated object
 saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
+
+data$Index <- str_replace(rownames(data@meta.data), pattern = "CSF_01_4839_", replacement = "")
+dir.create(glue("{proj_dir}/output/05_SComatic/{library}/"), recursive = TRUE)
+data@meta.data[,c("Index", "annot_2")] %>% 
+  write_delim(., file = glue("{proj_dir}/output/05_SComatic/{library}/barcode_annotations.tsv"), delim = "\t", col_names = TRUE)
+```
+
+## Cancer Hallmarks
+
+### Ribosomal content
+
+```{r eval = FALSE}
+data[["percent.rb"]] <- PercentageFeatureSet(data, pattern = "^RB|^RP")
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("percent.rb"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 2,
+  pt.size = 1
+  )
+```
+
+```{r}
+VlnPlot(
+  data,
+  features = "percent.rb",
+  group.by = "annot_2",
+  cols = as.vector(pals::polychrome())
+) +
+  NoLegend()
+```
+
+### Oxidative Phosphorilation
+
+```{r}
+oxphos_sig <- c("ABCB7", "ACAA1", "ACAA2", "ACADM", "ACADSB", "ACADVL", "ACAT1", "ACO2", "AFG3L2", "AIFM1", "ALAS1", "ALDH6A1", "ATP1B1", "ATP5F1A", "ATP5F1B", "ATP5F1C", "ATP5F1D", "ATP5F1E", "ATP5PB", "ATP5MC1", "ATP5MC2", "ATP5MC3", "ATP5PD", "ATP5ME", "ATP5PF", "ATP5MF", "ATP5MG", "ATP5PO", "ATP6AP1", "ATP6V0B", "ATP6V0C", "ATP6V0E1", "ATP6V1C1", "ATP6V1D", "ATP6V1E1", "ATP6V1F", "ATP6V1G1", "ATP6V1H", "BAX", "BCKDHA", "BDH2", "MPC1", "CASP7", "COX10", "COX11", "COX15", "COX17", "COX4I1", "COX5A", "COX5B", "COX6A1", "COX6B1", "COX6C", "COX7A2", "COX7A2L", "COX7B", "COX7C", "COX8A", "CPT1A", "CS", "CYB5A", "CYB5R3", "CYC1", "CYCS", "DECR1", "DLAT", "DLD", "DLST", "ECH1", "ECHS1", "ECI1", "ETFA", "ETFB", "ETFDH", "FDX1", "FH", "FXN", "GLUD1", "GOT2", "GPI", "GPX4", "GRPEL1", "HADHA", "HADHB", "HCCS", "HSD17B10", "HSPA9", "HTRA2", "IDH1", "IDH2", "IDH3A", "IDH3B", "IDH3G", "IMMT", "ISCA1", "ISCU", "LDHA", "LDHB", "LRPPRC", "MAOB", "MDH1", "MDH2", "MFN2", "MGST3", "MRPL11", "MRPL15", "MRPL34", "MRPL35", "MRPS11", "MRPS12", "MRPS15", "MRPS22", "MRPS30", "MTRF1", "MTRR", "MTX2", "NDUFA1", "NDUFA2", "NDUFA3", "NDUFA4", "NDUFA5", "NDUFA6", "NDUFA7", "NDUFA8", "NDUFA9", "NDUFAB1", "NDUFB1", "NDUFB2", "NDUFB3", "NDUFB4", "NDUFB5", "NDUFB6", "NDUFB7", "NDUFB8", "NDUFC1", "NDUFC2", "NDUFS1", "NDUFS2", "NDUFS3", "NDUFS4", "NDUFS6", "NDUFS7", "NDUFS8", "NDUFV1", "NDUFV2", "NNT", "NQO2", "OAT", "OGDH", "OPA1", "OXA1L", "PDHA1", "PDHB", "PDHX", "PDK4", "PDP1", "PHB2", "PHYH", "PMPCA", "POLR2F", "POR", "PRDX3", "RETSAT", "RHOT1", "RHOT2", "SDHA", "SDHB", "SDHC", "SDHD", "SLC25A11", "SLC25A12", "SLC25A20", "SLC25A3", "SLC25A4", "SLC25A5", "SLC25A6", "SUCLA2", "SUCLG1", "SUPV3L1", "SURF1", "TCIRG1", "TIMM10", "TIMM13", "TIMM17A", "TIMM50", "TIMM8B", "TIMM9", "TOMM22", "TOMM70", "UQCR10", "UQCR11", "UQCRB", "UQCRC1", "UQCRC2", "UQCRFS1", "UQCRH", "UQCRQ", "VDAC1", "VDAC2", "VDAC3")
+
+data <- UCell::AddModuleScore_UCell(data, features = list(OXPHOS = oxphos_sig))
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = "OXPHOS_UCell",
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 2,
+  pt.size = 1
+  )
+```
+
+```{r}
+VlnPlot(
+  data,
+  features = "OXPHOS_UCell",
+  group.by = "annot_2",
+  cols = as.vector(pals::polychrome())
+) +
+  NoLegend()
+```
+
+```{r eval = FALSE}
+# save annotated object
+saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
+```
+
+### Mutation information
+
+```{r fig.width=10}
+genes <- c("TACC3", "FGFR3", "GATA3")
+FeaturePlot(
+  data,
+  features = genes,
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 2,
+  pt.size = 1
+  )
+```
+
+```{r}
+DotPlot(
+  data,
+  features = genes, 
+  group.by = "annot_2", 
+  cols = "RdYlBu"
+)
+```
+
+```{r fig.width=10, fig.height=12}
+genes <- c("FGF8", "NFKB2", "SUFU", "NPM3", "TCF7L2", "SMC3")
+FeaturePlot(
+  data,
+  features = genes,
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 2,
+  ncol = 3,
+  pt.size = 1
+  )
+```
+
+```{r}
+DotPlot(
+  data,
+  features = genes, 
+  group.by = "annot_2", 
+  cols = "RdYlBu"
+) + RotatedAxis()
+```
+
+```{r fig.width=14, fig.height=16}
+genes <- c("GRM3", "HGF", "MAGI2", "CDK6", "AKAP9", "SAMD9", "ARPC1A", "CUX1", "EPHB4", "TRRAP", "PIK3CG", "FOXP2", "GRM8", "POT1", "SMO", "TRIM24", "BRAF", "EPHB6", "EZH2", "KMT2C", "RHEB", "XRCC2")
+FeaturePlot(
+  data,
+  features = genes,
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 2,
+  pt.size = 1
+  )
+```
+
+```{r}
+DotPlot(
+  data,
+  features = genes, 
+  group.by = "annot_2", 
+  cols = "RdYlBu"
+) +
+  RotatedAxis()
 ```
 
 ## TCR/BCR
@@ -350,33 +492,19 @@ doNextChunk <- ("cloneType" %in% colnames(data@meta.data))
 ```
 
 ```{r eval = FALSE}
-# TCR
+# load data
 tcr <- read.csv(glue("{proj_dir}/jobs/{library}/{library}/outs/per_sample_outs/{library}/vdj_t/filtered_contig_annotations.csv"))
 
-combined_tcr <- combineTCR(tcr, 
+combined <- combineTCR(tcr, 
                 ID = library, 
                 samples = proj_name, 
                 cells ="T-AB")
 
 # rename to match sc
-combined_tcr[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined_tcr[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
-
-# BCR
-bcr <- read.csv(glue("{proj_dir}/jobs/{library}/{library}/outs/per_sample_outs/{library}/vdj_b/filtered_contig_annotations.csv"))
-
-combined_bcr <- combineBCR(bcr,
-                ID = library,
-                samples = proj_name, 
-                threshold = 0.5
-                )
-
-# rename to match sc
-combined_bcr[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined_bcr[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
-
-list.receptors <- c(combined_tcr, combined_bcr)
+combined[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
 
 data <- combineExpression(
-  list.receptors, 
+  combined, 
   data, 
   cloneCall="aa", 
   proportion = FALSE, 
@@ -426,7 +554,7 @@ DimPlot(data, group.by = "cloneType", pt.size = 1) +
 "Number of clones (not cells!) per type and sample"
 df <- data@meta.data[, c("sample", "cloneType", "CTaa", "annot")] %>% 
   filter(!is.na(CTaa)) %>% 
-  filter(annot %in% c("T cells", "B cells", "Plasma cells"))
+  filter(annot %in% c("T cells", "B cells"))
 rownames(df) <- NULL
 df <- unique(df)
 table(df[, c("sample", "cloneType", "annot")]) %>% 
@@ -445,10 +573,10 @@ table(df[, c("sample", "cloneType", "annot")]) %>%
 ```{r results='markup', eval = doNextChunk}
 "Percentage of T cells that have a TCR (TRUE) and don't have one (FALSE)."
 
-t1 <- table(!is.na(subset(data, annot %in% c("T cells", "T cells - NK"))$cloneType)) %>% as.data.frame()
+t1 <- table(!is.na(subset(data, annot == "T cells")$cloneType)) %>% as.data.frame()
 colnames(t1) <- c("TCRs", "# Cells")
 
-t2 <- round((table(!is.na(subset(data, annot %in% c("T cells", "T cells - NK"))$cloneType))/dim(subset(data, annot %in% c("T cells", "T cells - NK")))[2])*100,2) %>% as.data.frame()
+t2 <- round((table(!is.na(subset(data, annot == "T cells")$cloneType))/dim(subset(data, annot == "T cells"))[2])*100,2) %>% as.data.frame()
 colnames(t2) <- c("TCRs", "% Cells")
 
 merge(t1, t2) %>% 
@@ -458,10 +586,10 @@ merge(t1, t2) %>%
 ```{r results='markup', eval = doNextChunk}
 "Percentage of B cells that have a BCR (TRUE) and don't have one (FALSE)."
 
-t1 <- table(!is.na(subset(data, annot %in% c("B cells", "Plasma B cells"))$cloneType)) %>% as.data.frame()
+t1 <- table(!is.na(subset(data, annot == "B cells")$cloneType)) %>% as.data.frame()
 colnames(t1) <- c("BCRs", "# Cells")
 
-t2 <- round((table(!is.na(subset(data, annot %in% c("B cells", "Plasma B cells"))$cloneType))/dim(subset(data, annot %in% c("B cells", "Plasma B cells")))[2])*100,2) %>% as.data.frame()
+t2 <- round((table(!is.na(subset(data, annot == "B cells")$cloneType))/dim(subset(data, annot == "B cells"))[2])*100,2) %>% as.data.frame()
 colnames(t2) <- c("BCRs", "% Cells")
 
 merge(t1, t2) %>% 
@@ -472,10 +600,11 @@ merge(t1, t2) %>%
 
 ****
 
+
 ```{r}
 FeaturePlot(
   data,
-  features = c("STAT6"),
+  features = c("PTPRN2", "DKK3", "EFNB3", "GRIN2A", "FGFR3", "EGFR", "GPR19", "DTR"),
   cols = c("#ADD8E633", "#E46726"),
   order = TRUE,
   label = TRUE,
@@ -487,8 +616,8 @@ FeaturePlot(
 
 ```{r fig.width=20}
 DotPlot(data,
-        group.by = "RNA_snn_res.0.3",
-        features = c("TNFRSF14", "CREBBP", "B2M", "BCL2", "SOCS1", "EZH1", "SGK1", "IRF8", "EBF1", "GNA13", "CD19", "MS4A1", "CDKN2A", "DAZAP1", "SPIB", "ETV6", "CD79B", "HLA-A", "IRF2BP2", "MIR17HG", "MALT1", "BCL6", "REL", "STAT6"),
+        group.by = "annot_2",
+        features = c("MRC1", "PTPRN2", "DKK3", "EFNB3", "GRIN2A", "FGFR3", "EGFR", "GPR19", "HBEGF", "PTK2B", "DAP3"),
         ) +
   RotatedAxis() +
   scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
@@ -519,7 +648,7 @@ DotPlot(data,
 ```{r}
 FeaturePlot(
   data,
-  features = c("IGKL", "IGKC"),
+  features = c("MRC1"),
   cols = c("#ADD8E633", "#E46726"),
   order = TRUE,
   label = TRUE,

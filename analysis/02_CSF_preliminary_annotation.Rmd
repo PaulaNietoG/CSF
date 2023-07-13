@@ -40,4 +40,10 @@ knitr::opts_chunk$set(echo = TRUE)
 * [P10 - 8102](CSF_03_8102_Processing_clustering.html)
 * [P11 - 3054](CSF_03_3054_Processing_clustering.html)
 
+# CSF_04
+
+* [P12 - 3887](CSF_04_5959_Processing_clustering.html)
+* [P13 - 8102](CSF_04_4776_Processing_clustering.html)
+* [P14 - 3054](CSF_04_4535_Processing_clustering.html)
+
 

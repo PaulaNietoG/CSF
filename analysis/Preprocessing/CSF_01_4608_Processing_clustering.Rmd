@@ -324,9 +324,15 @@ data$annot_2[data$annot == "B cells"] <- paste("B cells", data$sub.cluster[data$
 DimPlot(data, group.by = "annot_2", pt.size = 1.5, cols = as.vector(pals::polychrome()))
 ```
 
-```{r}
+```{r eval = FALSE}
+# check
+table(data$annot_2) %>% as.data.frame() %>% arrange(Freq)
 # remove T cells 11 -> two misclassified cells
 data <- subset(data, annot_2 == "T cells 11", invert = TRUE)
+
+data$Index <- str_replace(rownames(data@meta.data), pattern = "CSF_01_4608_", replacement = "")
+data@meta.data[,c("Index", "annot_2")] %>% 
+  write_delim(., file = glue("{proj_dir}/output/05_SComatic/{library}/barcode_annotations.tsv"), delim = "\t", col_names = TRUE)
 ```
 
 ```{r eval = FALSE}
