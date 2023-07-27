@@ -1,9 +1,9 @@
 # This script runs inverCNV (https://github.com/broadinstitute/inferCNV/)
 
 # parameters
-subproject <- "CSF_03"
-patient <- "3087"
-ref_cell_type <- c("T cells 7", "Macrophages 0", "DC 3", "T cells 9", "Macrophages 2")
+subproject <- "CSF_05"
+patient <- "4723"
+ref_cell_type <- c("T cells 3", "T cells 4", "T cells 1", "pDC 9", "Myeloid 6_2", "B cells 12")
 
 # Load packages
 library(Seurat)
@@ -50,7 +50,7 @@ print("Loading data...")
 seurat <- readRDS(data_path)
 table(seurat$annot_2) %>% as.data.frame() %>% arrange(Freq)
 sel <- table(seurat$annot_2) %>% as.data.frame() %>% arrange(Freq) %>% filter(Freq >= 5) %>% pull(Var1) %>% as.character()
-# seurat <- subset(seurat, annot_2 %in% sel)
+seurat <- subset(seurat, annot_2 %in% sel)
 
 gene_order_file <- read_tsv(
   path_to_gene_order,
@@ -96,6 +96,7 @@ infercnv_obj <- infercnv::run(
   num_threads = 24,
   HMM = TRUE,
   plot_chr_scale = TRUE,
+  # leiden_method="simple",
   BayesMaxPNormal = 0.2
 )
 

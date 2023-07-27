@@ -2,7 +2,7 @@ library(workflowr)
 library(rmarkdown)
 library(glue)
 
-subprojects <- c("CSF_01", "CSF_02", "CSF_03", "CSF_04")
+subprojects <- c("CSF_01", "CSF_02", "CSF_03", "CSF_04", "CSF_05")
 
 # QC
 purrr::map(subprojects, function(subproj){
@@ -23,7 +23,7 @@ purrr::map(subprojects, function(subproj){
   # get patients for each subproject
   patients <- list.dirs(path = glue("/scratch/devel/pnieto/projects/CSF/data/{subproj}/jobs"), full.names = FALSE, recursive = FALSE)
   print(patients)
-  
+
   purrr::map(patients, function(pat){
     print(pat)
     render(
@@ -33,6 +33,25 @@ purrr::map(subprojects, function(subproj){
     )
   })
 })
+
+# high resolution clustering
+purrr::map(subprojects, function(subproj){
+  print(subproj)
+  # get patients for each subproject
+  patients <- list.dirs(path = glue("/scratch/devel/pnieto/projects/CSF/data/{subproj}/jobs"), full.names = FALSE, recursive = FALSE)
+  print(patients)
+
+  purrr::map(patients, function(pat){
+    print(pat)
+    render(
+      glue("/scratch/devel/pnieto/projects/CSF/analysis/03_Automatic_HR_Annotation.Rmd"),
+      output_format = "html_document",
+      output_file = glue("/scratch/devel/pnieto/projects/CSF/docs/{subproj}_{pat}_Automatic_HR_Annotation.html"),
+      params = list(subproject = subproj, patient = pat)
+    )
+  })
+})
+
 
 # formatting
 render("/scratch/devel/pnieto/projects/CSF/analysis/index.Rmd",
