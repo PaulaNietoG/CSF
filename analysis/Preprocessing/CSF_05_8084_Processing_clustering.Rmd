@@ -1,22 +1,16 @@
 ---
 title: "Processing and preliminary clustering"
-subtitle: "CSF_03 - patient:3887"
+subtitle: "CSF_05 - patient: 8084"
 author:
 - name: Paula Nieto
   affiliation: 
   - Centro Nacional de Análisis Genómico (CNAG)
   email: paula.nieto@cnag.crg.eu
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output:
+output: 
   html_document:
-    self_contained: yes
-    mode: selfcontained
-    toc: true # table of content true
-    number_sections: true  ## if you want number sections at each table header
-    theme: united  # many options for theme, this one is my favorite.
-    highlight: tango  # specifies the syntax highlighting style
-editor_options:
-  chunk_output_type: console
+    toc: true
+  toc_float: true
 ---
 
 ```{r setup, include=FALSE}
@@ -40,10 +34,10 @@ library(dittoSeq)
 
 ```{r set-params}
 root <- get_root_dir()
-proj_name <- "CSF_03" 
-library <- "3887" 
-patient <- "P09"
-sample <- "S09"
+proj_name <- "CSF_05" 
+library <- "8084"
+patient <- "P10"
+sample <- "S15"
 proj_dir <- glue("{root}/CSF/data/{proj_name}")
 data_dir <- glue("{proj_dir}/output/01_QC_filtering")
 out_dir <- glue("{proj_dir}/output/02_processing_clustering")
@@ -52,7 +46,7 @@ out_dir <- glue("{proj_dir}/output/02_processing_clustering")
 ```{r create-output-folder}
 # create output folder if it doesn't exist yet
 if (!file.exists(out_dir)) {
-  dir.create(out_dir)
+  dir.create(out_dir, recursive = TRUE)
 }
 ```
 
@@ -82,8 +76,6 @@ data <- data %>%
   RunUMAP(dims = 1:20) %>%
   FindNeighbors(dims = 1:20) %>%
   FindClusters(resolution = seq(from = 0.1, to = 1, by = 0.1))
-# save integrated object
-saveRDS(data, glue("{out_dir}/{proj_name}_{library}_integrated.rds"))
 ```
 
 ```{r all resolutions, fig.height=10, fig.width=10}
@@ -92,12 +84,12 @@ DimPlot(data, group.by = paste0("RNA_snn_res.", seq(from = 0.1, to = 1, by = 0.1
 
 ```{r set resolution}
 # set selected resolution
-res <- "0.3"
+res <- "0.2"
 ```
 
 ```{r fix clusters, eval = FALSE}
 Idents(data) <- paste0("RNA_snn_res.", res)
-# data <- CellSelector(plot = DimPlot(data), object = data, ident = 1)
+data <- CellSelector(plot = DimPlot(data), object = data, ident = 10)
 data$seurat_clusters <- as.factor(as.character(Idents(data)))
 data@meta.data[,paste0("RNA_snn_res.", res)] <- as.factor(as.character(Idents(data)))
 Idents(data) <- as.factor(as.character(Idents(data)))
@@ -160,11 +152,12 @@ marker_genes <- c(
   "MKI67", # prolif
   "KLRB1", # NK
   "MS4A1", "CD79B", # B cells
+  # "MLANA", # tumor cells/melanocytes
   "LILRA4" # pDC
 )
 ```
 
-```{r fig.width=10, fig.height=12}
+```{r fig.width=12, fig.height=10}
 Idents(data) <- paste0("RNA_snn_res.", res)
 FeaturePlot(
   data,
@@ -173,7 +166,29 @@ FeaturePlot(
   order = TRUE,
   label = TRUE,
   label.size = 2,
-  ncol = 3,
+  ncol = 4,
+  pt.size = 1
+  )
+```
+
+```{r fig.width=10, fig.height=10}
+FeaturePlot(data,
+            features = c("CLEC9A", "CD1C", "CLEC10A", "FCER1A", "CCR7", "LAMP3", "ITGAX", "AXL", "SIGLEC6", "IL3RA"),
+            cols = c("#ADD8E633", "#E46726"), 
+            order = TRUE,
+            label = TRUE,
+            pt.size = 1
+            )
+```
+
+```{r eval = FALSE}
+FeaturePlot(
+  data,
+  features = c("CD274"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 2,
   pt.size = 1
   )
 ```
@@ -196,11 +211,11 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 
 ```{r eval = FALSE}
 Idents(data) <- "seurat_clusters"
-new.cluster.ids <- c("Monocytes", "Melanoma tumor cells", "T cells", "Macrophages", "Monocytes", "Monocytes", "DC", "Tumor cells", "Plasma B cells")
-names(new.cluster.ids) <- c(0:8)
+new.cluster.ids <- c("T cells", "B cells", "T cells", "T cells", "T cells", "B cells", "DC", "Myeloid")
+names(new.cluster.ids) <- c(0:5, 9, 10)
 data <- RenameIdents(data, new.cluster.ids)
 data$annot <- Idents(data)
-data <- subset(data, annot %in% c("doublets", "bad quality", "RBC"), invert = TRUE)
+data <- subset(data, annot %in% c("doublets", "bad quality", "RBC", "bad"), invert = TRUE)
 data$annot <- as.character(data$annot)
 # save annotated object
 saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
@@ -299,7 +314,7 @@ merge(t1, t2) %>%
 # High-res annotation
 
 ```{r eval = FALSE}
-res <- 1
+res <- "1"
 data$patient <- patient
 data$library <- library
 data$sample <- sample
@@ -333,17 +348,15 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 ```{r eval = FALSE}
 table(data$annot_2) %>% as.data.frame() %>% arrange(Freq)
 sel <- table(data$annot_2) %>% as.data.frame() %>% arrange(Freq) %>% filter(Freq >= 5) %>% pull(Var1) %>% as.character()
-# data <- subset(data, annot_2 %in% sel)
+data <- subset(data, annot_2 %in% sel)
 # save annotated object
 saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
 ```
 
 ```{r eval = FALSE}
+data$Index <- str_replace(rownames(data@meta.data), pattern = glue("{proj_name}_{library}_"), replacement = "")
 dir.create(glue("{proj_dir}/output/05_SComatic/{library}/"), recursive = TRUE)
-data$Index <- paste0(str_replace(rownames(data@meta.data), pattern = glue("{proj_name}_{library}_"), replacement = ""), "-1")
-
-data$Cell_type <- str_replace_all(data$annot_2, pattern = " ", replacement = "_")
-data@meta.data[,c("Index", "Cell_type")] %>% 
+data@meta.data[,c("Index", "annot_2")] %>% 
   write_delim(., file = glue("{proj_dir}/output/05_SComatic/{library}/barcode_annotations.tsv"), delim = "\t", col_names = TRUE)
 ```
 
@@ -372,18 +385,17 @@ combined_tcr <- combineTCR(tcr,
 combined_tcr[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined_tcr[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
 
 # BCR
-bcr <- read.csv(glue("{proj_dir}/jobs/{library}/{library}/outs/per_sample_outs/{library}/vdj_b/filtered_contig_annotations.csv"))
+# bcr <- read.csv(glue("{proj_dir}/jobs/{library}/{library}/outs/per_sample_outs/{library}/vdj_b/filtered_contig_annotations.csv"))
+# 
+# combined_bcr <- combineBCR(bcr,
+#                 ID = library,
+#                 samples = proj_name, threshold = 0.5
+#                 )
+# 
+# # rename to match sc
+# combined_bcr[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined_bcr[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
 
-combined_bcr <- combineBCR(bcr,
-                           samples = proj_name, 
-                           ID = library,
-                           threshold = 0.5
-                           )
-
-# rename to match sc
-combined_bcr[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined_bcr[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
-
-list.receptors <- c(combined_tcr, combined_bcr)
+list.receptors <- c(combined_tcr)#, combined_bcr)
 
 data <- combineExpression(
   list.receptors, 
@@ -398,7 +410,7 @@ saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
 
 ```{r eval = doNextChunk, results='markup'}
 data@meta.data[, c("sample", "Frequency", "cloneType", "CTaa", "annot")] %>% 
-  filter(annot %in% c("T cells", "B cells", "Plasma B cells")) %>% 
+  filter(annot %in% c("T cells", "T cells - NK", "B cells")) %>% 
   unique() %>% 
   filter(!is.na(cloneType)) %>% 
   arrange(desc(Frequency)) %>% 
@@ -436,7 +448,7 @@ DimPlot(data, group.by = "cloneType", pt.size = 1) +
 "Number of clones (not cells!) per type and sample"
 df <- data@meta.data[, c("sample", "cloneType", "CTaa", "annot")] %>% 
   filter(!is.na(CTaa)) %>% 
-  filter(annot %in% c("T cells", "B cells", "Plasma B cells"))
+  filter(annot %in% c("T cells", "T cells - NK", "B cells"))
 rownames(df) <- NULL
 df <- unique(df)
 table(df[, c("sample", "cloneType", "annot")]) %>% 
@@ -455,10 +467,10 @@ table(df[, c("sample", "cloneType", "annot")]) %>%
 ```{r results='markup', eval = doNextChunk}
 "Percentage of T cells that have a TCR (TRUE) and don't have one (FALSE)."
 
-t1 <- table(!is.na(subset(data, annot == "T cells")$cloneType)) %>% as.data.frame()
+t1 <- table(!is.na(subset(data, annot %in% c("T cells", "T cells - NK"))$cloneType)) %>% as.data.frame()
 colnames(t1) <- c("TCRs", "# Cells")
 
-t2 <- round((table(!is.na(subset(data, annot == "T cells")$cloneType))/dim(subset(data, annot == "T cells"))[2])*100,2) %>% as.data.frame()
+t2 <- round((table(!is.na(subset(data, annot %in% c("T cells", "T cells - NK"))$cloneType))/dim(subset(data, annot %in% c("T cells", "T cells - NK")))[2])*100,2) %>% as.data.frame()
 colnames(t2) <- c("TCRs", "% Cells")
 
 merge(t1, t2) %>% 
@@ -480,4 +492,4 @@ merge(t1, t2) %>%
 
 <a href="#top">Back to top</a>
 
-***
+****

@@ -62,7 +62,7 @@ out_path <- glue::glue("{proj_dir}/output") %T>%
 
 ```{r}
 # get subprojects
-subprojects <- c("CSF_01", "CSF_02", "CSF_03", "CSF_04")
+subprojects <- c("CSF_01", "CSF_02", "CSF_03", "CSF_04", "CSF_05")
 ```
 
 ```{r}
@@ -512,7 +512,7 @@ if (nrow(cellranger_metrics_vdj_b_df) == 0) {
   print("BCR not present")
 } else {
   cellranger_metrics_vdj_b_df %>% 
-    select(2:5,9,12,6,7,13) %>% 
+    select(2:5,9,12,6,7,13,14) %>% 
     gt()  %>%
     tab_header(
       title = md("**V(D)J annotation**"),

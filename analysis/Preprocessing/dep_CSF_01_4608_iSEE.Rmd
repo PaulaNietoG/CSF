@@ -1,0 +1,65 @@
+---
+title: "Processing and preliminary clustering"
+subtitle: "CSF_01 - patient:4608"
+author:
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.crg.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    toc: true
+  toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+```{r surce-utils, include=FALSE}
+tryCatch({
+  source("/scratch/devel/pnieto/scripts/r_utils/utils.R")
+}, error = function(e) {
+  source("S:/scripts/r_utils/utils.R")
+})
+library(dittoSeq)
+```
+
+```{r set-params}
+root <- get_root_dir()
+proj_name <- "CSF_01" 
+library <- "4608" 
+patient <- "P01"
+sample <- "S01"
+proj_dir <- glue("{root}/CSF/data/{proj_name}")
+data_dir <- glue("{proj_dir}/output/01_QC_filtering")
+out_dir <- glue("{proj_dir}/output/02_processing_clustering")
+```
+
+```{r create-output-folder}
+# create output folder if it doesn't exist yet
+if (!file.exists(out_dir)) {
+  dir.create(out_dir)
+}
+```
+
+```{r}
+library(BiocManager)
+library(rsconnect)
+options(repos = BiocManager::repositories())
+library(iSEE)
+library(shiny)
+
+sce <- as.SingleCellExperiment(readRDS(glue("{out_dir}/{proj_name}_{library}_annotated.rds")))
+app <- iSEE(sce)
+iSEE(appTitle="TEST SHINY APP", sce)
+# shiny::runApp(app)
+```
+

@@ -196,8 +196,8 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 
 ```{r eval = FALSE}
 Idents(data) <- "seurat_clusters"
-new.cluster.ids <- c("B cells", "T cells", "T cells", "T cells", "B cells", "B cells", "B cells", "T cells", "Myeloid", "T cells - NK", "Plasma cells", "Proliferative", "DC", "pDC")
-names(new.cluster.ids) <- c(0:13)
+new.cluster.ids <- c("T cells", "Myeloid", "B cells", "T cells", "T cells", "Plasma cells", "T cells", "Proliferative")
+names(new.cluster.ids) <- c(0:7)
 data <- RenameIdents(data, new.cluster.ids)
 data$annot <- Idents(data)
 data <- subset(data, annot %in% c("doublets", "bad quality", "RBC"), invert = TRUE)
@@ -298,6 +298,7 @@ merge(t1, t2) %>%
 # High-res annotation
 
 ```{r eval = FALSE}
+res <- 1
 data$patient <- patient
 data$library <- library
 data$sample <- sample
@@ -365,10 +366,10 @@ combined_tcr[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined
 bcr <- read.csv(glue("{proj_dir}/jobs/{library}/{library}/outs/per_sample_outs/{library}/vdj_b/filtered_contig_annotations.csv"))
 
 combined_bcr <- combineBCR(bcr,
-                ID = library,
-                samples = proj_name, 
-                threshold = 0.5
-                )
+                           samples = proj_name, 
+                           ID = library,
+                           threshold = 0.5
+                           )
 
 # rename to match sc
 combined_bcr[[glue("{proj_name}_{library}")]]$barcode <- str_remove_all(combined_bcr[[glue("{proj_name}_{library}")]]$barcode, pattern = "-1$|-2$|-3$")
@@ -388,7 +389,7 @@ saveRDS(data, glue("{out_dir}/{proj_name}_{library}_annotated.rds"))
 
 ```{r eval = doNextChunk, results='markup'}
 data@meta.data[, c("sample", "Frequency", "cloneType", "CTaa", "annot")] %>% 
-  filter(annot %in% c("T cells", "B cells")) %>% 
+  filter(annot %in% c("T cells", "B cells", "Plasma cells")) %>% 
   unique() %>% 
   filter(!is.na(cloneType)) %>% 
   arrange(desc(Frequency)) %>% 
@@ -445,10 +446,10 @@ table(df[, c("sample", "cloneType", "annot")]) %>%
 ```{r results='markup', eval = doNextChunk}
 "Percentage of T cells that have a TCR (TRUE) and don't have one (FALSE)."
 
-t1 <- table(!is.na(subset(data, annot %in% c("T cells", "T cells - NK"))$cloneType)) %>% as.data.frame()
+t1 <- table(!is.na(subset(data, annot == "T cells")$cloneType)) %>% as.data.frame()
 colnames(t1) <- c("TCRs", "# Cells")
 
-t2 <- round((table(!is.na(subset(data, annot %in% c("T cells", "T cells - NK"))$cloneType))/dim(subset(data, annot %in% c("T cells", "T cells - NK")))[2])*100,2) %>% as.data.frame()
+t2 <- round((table(!is.na(subset(data, annot == "T cells")$cloneType))/dim(subset(data, annot == "T cells"))[2])*100,2) %>% as.data.frame()
 colnames(t2) <- c("TCRs", "% Cells")
 
 merge(t1, t2) %>% 
@@ -456,7 +457,7 @@ merge(t1, t2) %>%
 ```
 
 ```{r results='markup', eval = doNextChunk}
-"Percentage of B cells that have a BCR (TRUE) and don't have one (FALSE)."
+"Percentage of (Plasma)) B cells that have a BCR (TRUE) and don't have one (FALSE)."
 
 t1 <- table(!is.na(subset(data, annot %in% c("B cells", "Plasma B cells"))$cloneType)) %>% as.data.frame()
 colnames(t1) <- c("BCRs", "# Cells")
@@ -470,60 +471,4 @@ merge(t1, t2) %>%
 
 <a href="#top">Back to top</a>
 
-****
-
-```{r}
-FeaturePlot(
-  data,
-  features = c("STAT6"),
-  cols = c("#ADD8E633", "#E46726"),
-  order = TRUE,
-  label = TRUE,
-  label.size = 3,
-  ncol = 2,
-  pt.size = 1
-  )
-```
-
-```{r fig.width=20}
-DotPlot(data,
-        group.by = "RNA_snn_res.0.3",
-        features = c("TNFRSF14", "CREBBP", "B2M", "BCL2", "SOCS1", "EZH1", "SGK1", "IRF8", "EBF1", "GNA13", "CD19", "MS4A1", "CDKN2A", "DAZAP1", "SPIB", "ETV6", "CD79B", "HLA-A", "IRF2BP2", "MIR17HG", "MALT1", "BCL6", "REL", "STAT6"),
-        ) +
-  RotatedAxis() +
-  scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
-```
-
-```{r}
-FeaturePlot(
-  data,
-  features = c("CD19", "MS4A1", "MYC", "IRF4", "BCL2", "BCL6"),
-  cols = c("#ADD8E633", "#E46726"),
-  order = TRUE,
-  label = TRUE,
-  label.size = 3,
-  ncol = 3,
-  pt.size = 1
-  )
-```
-
-```{r fig.width=20}
-DotPlot(data,
-        group.by = "RNA_snn_res.0.3",
-        features = c("CD19", "MS4A1", "MYC", "IRF4", "BCL2", "BCL6"),
-        cols = "RdYlBu"
-        ) +
-  RotatedAxis() 
-```
-
-```{r}
-FeaturePlot(
-  data,
-  features = c("IGKL", "IGKC"),
-  cols = c("#ADD8E633", "#E46726"),
-  order = TRUE,
-  label = TRUE,
-  label.size = 3,
-  pt.size = 1
-  )
-```
+***

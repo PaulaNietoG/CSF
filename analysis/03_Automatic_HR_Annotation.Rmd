@@ -1,0 +1,172 @@
+---
+title: "Annotate automatically HR clusters"
+author:
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.crg.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    toc: true
+  toc_float: true
+params:
+  subproject: "CSF_01"
+  patient: "4608"
+subtitle: "`r glue::glue('{params$subproject} - {params$patient}')`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+
+```{r set-params}
+library(tidyverse)
+library(glue)
+library(magrittr)
+library(Seurat)
+library(glue)
+
+subproject = params$subproject
+patient = params$patient
+
+# set path depending if on cluster or local
+root_dir <- ifelse(
+  grepl(dirname(getwd()), pattern = "/scratch/"),
+  "/scratch/devel/pnieto", #true statement
+  "S:" # false statement
+)
+
+# name of the project directory
+proj_dir <- glue::glue("{root_dir}/projects/CSF")
+# name of output folder
+out_dir <- glue("{proj_dir}/data/{subproject}/output/04_high_res_annotation") %T>%
+  dir.create()
+
+# load cell type/list
+source(glue("{root_dir}/scripts/r_utils/marker_genes.R"))
+```
+
+```{r}
+# load annotated object
+data <- readRDS(glue("{proj_dir}/data/{subproject}/output/02_processing_clustering/{subproject}_{patient}_annotated.rds"))
+# define color palette
+pal <- as.vector(pals::polychrome())
+```
+
+```{r}
+# compute signature scores con UCell
+data <- UCell::AddModuleScore_UCell(data, features = marker_genes, ncores = 4, name = "")
+```
+
+```{r}
+# get average of each signature per "annot_2" cluster
+avg <- data@meta.data[, c("annot_2", make.names(names(marker_genes)))]
+rownames(avg) <- NULL
+averages <- aggregate(. ~ annot_2, data = avg, FUN = mean)
+# make 0 all values below 0.1
+averages[averages < 0.01] <- 0
+# Calculate column sums (except for the first column)
+row_sums <- rowSums(averages[, -1])
+# Selecting the columns you want to divide by the row sums (excludes the first column)
+columns_to_divide <- names(averages)[-1]
+# Divide each element in the selected columns by the corresponding row sum
+averages[columns_to_divide] <- averages[columns_to_divide] / row_sums
+```
+
+```{r fig.height = 10}
+# make long so that it can be used with ggplot
+df_avg <- pivot_longer(averages, cols = colnames(averages)[colnames(averages) != "annot_2"])
+
+# plot averages as a heatmap heatmap
+df_avg %>% 
+  # mutate(value = if_else(value < 0.1, 0, value)) %>%
+ggplot(aes(x = annot_2, y = name, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "red") +  # Set the color scale from white to redd
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), # Rotate x-axis labels for better readability
+        text = element_text(size = 16))   +
+  labs(title = "Average signature score",
+       fill = "Score",
+       caption = glue("{subproject} {patient}"))
+ggsave(file = glue("{out_dir}/{subproject}_{patient}_heatmap.png"), height = 10, width = 10)
+```
+
+```{r}
+# remove column annot and assign as rownames
+rownames(averages) <- averages$annot_2
+averages$annot_2 <- NULL
+
+## assign to each cluster, the cell type with the highest jaccard index
+highest_column_list <- c()# Initialize an empty list to store the results
+# Loop through the rows (clusters) of the 'averages' matrix
+for (row_name in rownames(averages)) {
+  # Get the row values for the current cluster
+  row_values <- averages[row_name, ]
+
+  # Check if all values in the row are 0
+  if (all(row_values < 0.1)) {
+    highest_column <- "unknown"
+  } else {
+    # Find the column names with the highest value(s) in the row
+    highest_columns <- names(row_values)[row_values == max(row_values)]
+
+    # Check if there is a tie (more than one column with the same highest value)
+    if (length(highest_columns) > 1) {
+      print(highest_columns)
+      highest_column <- "unknown"
+    } else {
+      # Assign the highest_column to the current cluster in the list
+      highest_column <- highest_columns
+    }
+  }
+
+  # Assign the highest_column to the current cluster in the list
+  highest_column_list <- c(highest_column_list, str_replace_all(highest_column, pattern = "\\.", replacement = " "))
+}
+names(highest_column_list) <- rownames(averages)
+```
+
+```{r}
+# assign annotation to annot 2
+data$barcode <- rownames(data@meta.data)
+df_meta <- data@meta.data[, c("barcode", "annot_2")]
+df_annot <- data.frame(
+  "annot_2" = names(highest_column_list),
+  "auto_annot" = unname(highest_column_list)
+)
+df_meta <- merge(df_meta, df_annot, all.x = TRUE)
+rownames(df_meta) <- df_meta$barcode
+data <- AddMetaData(data, metadata = df_meta[,c("barcode", "auto_annot")])
+# fix tumor clusters if any
+data$auto_annot[data$annot %in% grep(unique(data$annot), pattern = "Tumor", value = TRUE)] <- "Tumor cells"
+
+# save annotated object
+saveRDS(data, glue("{out_dir}/{subproject}_{patient}_HR_automatic_annotated.rds"))
+```
+
+```{r fig.width=12}
+p1 <- DimPlot(data, group.by = "annot_2", cols = as.vector(pals::polychrome())) +
+  labs(
+    title = "Clustering"
+  )
+p2 <- DimPlot(data, group.by = "auto_annot", cols = pals::glasbey()) +
+  labs(
+    title = "High Resolution Annotation",
+    caption = glue("{subproject} {patient}")
+  )
+p1+p2
+ggsave(file = glue("{out_dir}/{subproject}_{patient}_umaps.png"), width = 12)
+```
+
+<a href="#top">Back to top</a>
+
+****
