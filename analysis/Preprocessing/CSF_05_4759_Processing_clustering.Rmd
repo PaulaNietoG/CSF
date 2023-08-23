@@ -35,7 +35,7 @@ library(dittoSeq)
 ```{r set-params}
 root <- get_root_dir()
 proj_name <- "CSF_05" 
-library <- "4723"
+library <- "4759"
 patient <- "P15"
 sample <- "S16"
 proj_dir <- glue("{root}/CSF/data/{proj_name}")
@@ -199,7 +199,7 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 
 ```{r eval = FALSE}
 Idents(data) <- "seurat_clusters"
-new.cluster.ids <- c("T cells", "T cells", "T cells", "T cells", "T cells", "B cells", "Myeloid", "pDC", "Plasma cells", "T cells", "Tumor cells")
+new.cluster.ids <- c("T cells", "T cells", "T cells", "T cells", "B cells", "Myeloid", "pDC", "T cells", "T cells", "cDC", "DC")
 names(new.cluster.ids) <- c(0:10)
 data <- RenameIdents(data, new.cluster.ids)
 data$annot <- Idents(data)
@@ -474,7 +474,7 @@ merge(t1, t2) %>%
   DT::datatable(rownames = NULL, caption = paste(unique(data$sample),unique(data$project)))
 ```
 
-```{r results='markup', eval = doNextChunk}
+```{r results='markup', eval = !doNextChunk}
 "Percentage of (Plasma)) B cells that have a BCR (TRUE) and don't have one (FALSE)."
 
 t1 <- table(!is.na(subset(data, annot %in% c("B cells", "Plasma B cells"))$cloneType)) %>% as.data.frame()
