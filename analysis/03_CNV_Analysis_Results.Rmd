@@ -1,0 +1,87 @@
+---
+title: "CNV Analysis Results Visualization"
+author:
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+params:
+  subproject: "CSF_01"
+  patient: "4839"
+subtitle: "`r glue::glue('{params$subproject} - {params$patient}')`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+```{r set-params}
+library(tidyverse)
+library(glue)
+library(magrittr)
+library(Seurat)
+library(glue)
+library(png)
+library(infercnv)
+library(patchwork)
+
+subproject = params$subproject
+patient = params$patient
+
+# set path depending if on cluster or local
+root_dir <- ifelse(
+  grepl(dirname(getwd()), pattern = "/scratch/"),
+  "/scratch/devel/pnieto", #true statement
+  "S:" # false statement
+)
+
+# name of the project directory
+proj_dir <- glue::glue("{root_dir}/projects/CSF")
+# name of output folder
+out_dir <- glue("{proj_dir}/data/{subproject}/output/03_inferCNV/{patient}") 
+```
+
+```{r inferCNV image}
+# read inferCNV image
+img <- readPNG(glue("{out_dir}/infercnv.png"))
+# print image
+grid::grid.raster(img)
+```
+
+```{r add CNV metadata}
+# load annotated object
+data <- readRDS(glue("{proj_dir}/data/{subproject}/output/02_processing_clustering/{subproject}_{patient}_annotated.rds"))
+# And add inferCNV info to seurat
+data <- infercnv::add_to_seurat(infercnv_output_path=out_dir, seurat_obj=data)
+# save obj with inferCNV info
+saveRDS(data, glue("{out_dir}/{patient}_annotated_inferCNV.rds"))
+```
+
+```{r}
+DimPlot(data, group.by = "annot_2", cols = as.vector(pals::polychrome())) +
+  labs(
+    title = "Clustering",
+    caption = glue("{subproject} {patient}")
+  )
+```
+
+```{r CNV plots, fig.width=12, fig.height=20}
+# plots
+DimPlot(
+  data,
+  group.by = grep(colnames(data@meta.data), pattern = "has_cnv", value = TRUE),
+  cols = list("TRUE" = "red", "FALSE" = "lightgrey"), 
+  ncol = 4
+  ) + 
+  plot_layout(guides = "collect") & 
+  theme(legend.position = 'bottom')
+```
+

@@ -62,7 +62,7 @@ out_path <- glue::glue("{proj_dir}/output") %T>%
 
 ```{r}
 # get subprojects
-subprojects <- c("CSF_01", "CSF_02", "CSF_03", "CSF_04", "CSF_05")
+subprojects <- c("CSF_01", "CSF_02", "CSF_03", "CSF_04", "CSF_05", "CSF_06")
 ```
 
 ```{r}

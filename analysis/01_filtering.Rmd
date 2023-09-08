@@ -27,3 +27,5 @@ knitr::opts_chunk$set(echo = TRUE)
 * [SCGRES_64_65 / CSF_03](01_Overview_and_QC_filtering_CSF_03.html)
 * [SCGRES_66_67 / CSF_04](01_Overview_and_QC_filtering_CSF_04.html)
 * [SCGRES_71_72 / CSF_05](01_Overview_and_QC_filtering_CSF_05.html)
+* [SCGRES_73_74 / CSF_06](01_Overview_and_QC_filtering_CSF_06.html)
+

@@ -1,0 +1,256 @@
+---
+title: "Integration Patient 16"
+subtitle: "Brain and leptomentingeal metastases from triple negative breast cancer"
+author:
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+```{r set-params}
+library(tidyverse)
+library(glue)
+library(magrittr)
+library(Seurat)
+library(glue)
+library(harmony)
+library(scRepertoire)
+library(dittoSeq)
+
+# set path depending if on cluster or local
+root_dir <- ifelse(
+  grepl(dirname(getwd()), pattern = "/scratch/"),
+  "/scratch/devel/pnieto", #true statement
+  "S:" # false statement
+)
+
+# name of the project directory
+proj_dir <- glue::glue("{root_dir}/projects/CSF")
+# name of output folder
+out_dir <- glue("{proj_dir}/output/integration/Patient 16") %T>%
+  dir.create()
+```
+
+```{r}
+# load annotated object
+data <- readRDS(glue("{out_dir}/all_cells_integrated.rds"))
+```
+
+```{r}
+print(table(data$sample))
+```
+
+```{r eval = FALSE}
+# get samples to integrate
+sample_list <- c("4723", "4619")
+# files <- list.files(glue("{proj_dir}/data"), recursive = "TRUE", pattern = "HR_automatic_annotated_CT.rds", full.names = TRUE) %>% 
+  # grep(pattern = paste(sample_list, collapse = "|"), value = TRUE)
+files <- c(glue("{proj_dir}/data/CSF_05/output/05_CellTypist/4723_HR_automatic_annotated_CT.rds"), 
+           glue("{proj_dir}/data/CSF_06/output/04_high_res_annotation/CSF_06_4619_HR_automatic_annotated.rds"))
+data <- purrr::map(files, readRDS)
+```
+
+```{r eval = FALSE}
+data <- merge(data[[1]], data[[2]])
+
+data <- data %>%
+  NormalizeData() %>% 
+  FindVariableFeatures(nfeatures = 3000) %>%
+  ScaleData() %>%
+  RunPCA()
+
+# defined the group_by_vars variable as a factor
+data@meta.data$sample <- as.factor(data@meta.data$sample)
+data <- RunHarmony(data, group.by.vars = c("sample"))
+
+data <- data %>%
+  RunUMAP(reduction = "harmony", dims = 1:25, verbose = FALSE) %>%
+  FindNeighbors(reduction = "harmony", dims = 1:25, verbose = FALSE) %>%
+  FindClusters(resolution = seq(0.1, 1, 0.1), verbose = FALSE)
+
+# data$annot <- recode(data$annot,
+#                      "T cells - NK" = "T cells",
+#                      "DC1" = "DC", 
+#                      "Tumor" = "Other cells",
+#                      "Prolif" = "Proliferative",
+#                      "Myeloid" = "Myeloid cells"
+#                      )
+
+# save clustered dataset
+saveRDS(data, glue("{out_dir}/all_cells_integrated.rds"))
+```
+
+Check if integration worked well
+
+```{r}
+DimPlot(data, 
+        group.by = "sample",
+        shuffle = TRUE,
+        label.size = 6
+      ) + 
+  theme(text = element_text(size = 20))
+```
+
+```{r fig.width=10}
+DimPlot(
+  data, 
+  group.by = "annot", 
+  split.by = "sample",
+  cols = as.vector(pals::polychrome())
+  ) +
+  labs(
+    title = "General annotation"
+  ) +
+  theme(text = element_text(size = 20))
+```
+
+```{r}
+dittoBarPlot(
+  data,
+  var = "annot",
+  group.by = "sample",
+  color.panel = as.vector(pals::polychrome())
+) +
+  NoLegend() +
+  ggtitle("") +
+  dittoBarPlot(
+  data,
+  var = "annot",
+  group.by = "sample", 
+  scale = "count",
+  color.panel = as.vector(pals::polychrome())
+) +
+  ggtitle("") &
+  theme(text = element_text(size = 20))
+```
+
+
+```{r fig.width=10, eval = FALSE}
+DimPlot(
+  data, 
+  group.by = "auto_annot", 
+  split.by = "sample",
+  cols = as.vector(pals::glasbey())
+  ) +
+  labs(
+    title = "Automatic annotation"
+  ) +
+  theme(text = element_text(size = 20))
+```
+
+```{r eval = FALSE}
+dittoBarPlot(
+  data,
+  var = "auto_annot",
+  group.by = "sample",
+  color.panel = as.vector(pals::glasbey())
+) +
+  NoLegend() +
+  ggtitle("") +
+  dittoBarPlot(
+  data,
+  var = "auto_annot",
+  group.by = "sample", 
+  scale = "count",
+  color.panel = as.vector(pals::glasbey())
+) +
+  ggtitle("") &
+  theme(text = element_text(size = 20))
+```
+
+```{r fig.width=15, eval = FALSE}
+t <- table(data$CT_predicted_labels) %>% 
+  as.data.frame() %>% 
+  filter(Freq >= 5) %>% 
+  pull(Var1)
+
+DimPlot(
+  subset(data, CT_predicted_labels %in% t), 
+  group.by = "CT_predicted_labels", 
+  split.by = "sample",
+  cols = c(as.vector(pals::alphabet()), as.vector(pals::alphabet2()))
+  ) +
+  labs(
+    title = "CellTypist annotation"
+  ) +
+  theme(text = element_text(size = 20))
+```
+
+```{r fig.width=15, eval = FALSE}
+dittoBarPlot(
+  subset(data, CT_predicted_labels %in% t), 
+  var = "CT_predicted_labels",
+  group.by = "sample",
+  color.panel = c(as.vector(pals::alphabet()), as.vector(pals::alphabet2()))
+) +
+  NoLegend() +
+  ggtitle("") +
+  dittoBarPlot(
+  subset(data, CT_predicted_labels %in% t), 
+  var = "CT_predicted_labels",
+  group.by = "sample", 
+  scale = "count",
+  color.panel = c(as.vector(pals::alphabet()), as.vector(pals::alphabet2()))
+) +
+  ggtitle("") &
+  theme(text = element_text(size = 20))
+```
+
+***
+
+```{r fig.width=10, fig.height=10, eval = FALSE}
+data <- readRDS(glue("{out_path}/all_cells_integrated.rds"))
+DimPlot(data, 
+        group.by = grep(colnames(data@meta.data), pattern = "RNA_snn_res", value = TRUE),
+        label = TRUE,
+        pt.size = 1,
+        label.size = 3
+        )
+
+data$seurat_clusters <- data$RNA_snn_res.1
+Idents(data) <- "RNA_snn_res.1"
+
+data$seurat_clusters <- as.factor(as.character(Idents(data)))
+data$RNA_snn_res.1 <- as.factor(as.character(Idents(data)))
+Idents(data) <- as.factor(as.character(Idents(data)))
+```
+
+```{r eval = FALSE}
+DimPlot(data, 
+        group.by = "seurat_clusters",
+        label = TRUE,
+        pt.size = 2,
+        label.size = 6
+      ) + 
+  NoLegend() +
+  theme(text = element_text(size = 20))
+```
+
+```{r eval = FALSE}
+DimPlot(data, 
+        group.by = "seurat_clusters",
+        split.by = "sample",
+        label = TRUE,
+        pt.size = 2,
+        label.size = 6,
+        ncol = 4
+        ) + 
+  NoLegend() +
+  theme(text = element_text(size = 20)) 
+```
+
+<a href="#top">Back to top</a>
+

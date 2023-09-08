@@ -48,8 +48,15 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # CSF_05
 
-* [P19 - 8084](CSF_05_8084_Processing_clustering.html)
+* [P10 - 8084](CSF_05_8084_Processing_clustering.html)
 * [P15 - 4759](CSF_05_4759_Processing_clustering.html)
 * [P16 - 4723](CSF_05_4723_Processing_clustering.html)
 
+# CSF_06
+
+* [P12 - 8022](CSF_06_8022_Processing_clustering.html)
+* [P16 - 4619](CSF_06_4619_Processing_clustering.html)
+* [P07 - 8194](CSF_06_8194_Processing_clustering.html)
+* [P12 - 3885](CSF_06_3885_Processing_clustering.html)
+* [P12 - 8202](CSF_06_8202_Processing_clustering.html)
 

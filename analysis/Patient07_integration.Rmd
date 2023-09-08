@@ -1,0 +1,363 @@
+---
+title: "Integration Patient 7"
+subtitle: "Cerebral abscess with purulent meningitis and ventriculitis (Eikanella spp. bacteria)"
+author:
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+```{r set-params}
+library(tidyverse)
+library(glue)
+library(magrittr)
+library(Seurat)
+library(glue)
+library(harmony)
+library(scRepertoire)
+library(dittoSeq)
+
+# set path depending if on cluster or local
+root_dir <- ifelse(
+  grepl(dirname(getwd()), pattern = "/scratch/"),
+  "/scratch/devel/pnieto", #true statement
+  "S:" # false statement
+)
+
+# name of the project directory
+proj_dir <- glue::glue("{root_dir}/projects/CSF")
+# name of output folder
+out_dir <- glue("{proj_dir}/output/integration/Patient 7") %T>%
+  dir.create()
+```
+
+```{r}
+# load annotated object
+data <- readRDS(glue("{out_dir}/all_cells_integrated.rds"))
+```
+
+```{r}
+print(table(data$sample))
+```
+
+# Integration
+
+```{r eval = FALSE}
+# get samples to integrate
+sample_list <- c("7974", "8194")
+# files <- list.files(glue("{proj_dir}/data"), recursive = "TRUE", pattern = "HR_automatic_annotated_CT.rds", full.names = TRUE) %>% 
+  # grep(pattern = paste(sample_list, collapse = "|"), value = TRUE)
+files <- c(glue("{proj_dir}/data/CSF_02/output/05_CellTypist/7974_HR_automatic_annotated_CT.rds"), 
+           glue("{proj_dir}/data/CSF_06/output/05_CellTypist/8194_HR_automatic_annotated_CT.rds"))
+data <- purrr::map(files, readRDS)
+```
+
+```{r eval = FALSE}
+data <- merge(data[[1]], data[[2]])
+
+data <- data %>%
+  NormalizeData() %>% 
+  FindVariableFeatures(nfeatures = 3000) %>%
+  ScaleData() %>%
+  RunPCA()
+
+# defined the group_by_vars variable as a factor
+data@meta.data$sample <- as.factor(data@meta.data$sample)
+data <- RunHarmony(data, group.by.vars = c("sample"))
+
+data <- data %>%
+  RunUMAP(reduction = "harmony", dims = 1:25) %>%
+  FindNeighbors(reduction = "harmony", dims = 1:25) %>%
+  FindClusters(resolution = seq(0.1, 1, 0.1))
+
+data$annot <- recode(data$annot,
+                     "T cells - NK" = "T cells",
+                     "DC1" = "DC", 
+                     "Tumor" = "Other cells",
+                     "Prolif" = "Proliferative",
+                     "Myeloid" = "Myeloid cells"
+                     )
+
+# save clustered dataset
+saveRDS(data, glue("{out_dir}/all_cells_integrated.rds"))
+```
+
+Check if integration worked well
+
+```{r}
+DimPlot(data, 
+        group.by = "sample",
+        shuffle = TRUE,
+        label.size = 6
+      ) + 
+  theme(text = element_text(size = 20))
+```
+
+```{r fig.width=10}
+DimPlot(
+  data, 
+  group.by = "annot", 
+  split.by = "sample",
+  cols = as.vector(pals::polychrome())
+  ) +
+  labs(
+    title = "General annotation"
+  ) +
+  theme(text = element_text(size = 20))
+```
+
+```{r}
+dittoBarPlot(
+  data,
+  var = "annot",
+  group.by = "sample",
+  color.panel = as.vector(pals::polychrome())
+) +
+  NoLegend() +
+  ggtitle("") +
+  dittoBarPlot(
+  data,
+  var = "annot",
+  group.by = "sample", 
+  scale = "count",
+  color.panel = as.vector(pals::polychrome())
+) +
+  ggtitle("") &
+  theme(text = element_text(size = 20))
+```
+
+
+```{r fig.width=10}
+DimPlot(
+  data, 
+  group.by = "auto_annot", 
+  split.by = "sample",
+  cols = as.vector(pals::glasbey())
+  ) +
+  labs(
+    title = "Automatic annotation"
+  ) +
+  theme(text = element_text(size = 20))
+```
+
+```{r}
+dittoBarPlot(
+  data,
+  var = "auto_annot",
+  group.by = "sample",
+  color.panel = as.vector(pals::glasbey())
+) +
+  NoLegend() +
+  ggtitle("") +
+  dittoBarPlot(
+  data,
+  var = "auto_annot",
+  group.by = "sample", 
+  scale = "count",
+  color.panel = as.vector(pals::glasbey())
+) +
+  ggtitle("") &
+  theme(text = element_text(size = 20))
+```
+
+```{r fig.width=15}
+t <- table(data$CT_predicted_labels) %>% 
+  as.data.frame() %>% 
+  filter(Freq >= 5) %>% 
+  pull(Var1)
+
+DimPlot(
+  subset(data, CT_predicted_labels %in% t), 
+  group.by = "CT_predicted_labels", 
+  split.by = "sample",
+  cols = c(as.vector(pals::alphabet()), as.vector(pals::alphabet2()))
+  ) +
+  labs(
+    title = "CellTypist annotation"
+  ) +
+  theme(text = element_text(size = 20))
+```
+
+```{r fig.width=15}
+dittoBarPlot(
+  subset(data, CT_predicted_labels %in% t), 
+  var = "CT_predicted_labels",
+  group.by = "sample",
+  color.panel = c(as.vector(pals::alphabet()), as.vector(pals::alphabet2()))
+) +
+  NoLegend() +
+  ggtitle("") +
+  dittoBarPlot(
+  subset(data, CT_predicted_labels %in% t), 
+  var = "CT_predicted_labels",
+  group.by = "sample", 
+  scale = "count",
+  color.panel = c(as.vector(pals::alphabet()), as.vector(pals::alphabet2()))
+) +
+  ggtitle("") &
+  theme(text = element_text(size = 20))
+```
+
+```{r fig.width=10, fig.height=10, eval = FALSE}
+data <- readRDS(glue("{out_path}/all_cells_integrated.rds"))
+DimPlot(data, 
+        group.by = grep(colnames(data@meta.data), pattern = "RNA_snn_res", value = TRUE),
+        label = TRUE,
+        pt.size = 1,
+        label.size = 3
+        )
+
+data$seurat_clusters <- data$RNA_snn_res.1
+Idents(data) <- "RNA_snn_res.1"
+
+data$seurat_clusters <- as.factor(as.character(Idents(data)))
+data$RNA_snn_res.1 <- as.factor(as.character(Idents(data)))
+Idents(data) <- as.factor(as.character(Idents(data)))
+```
+
+```{r eval = FALSE}
+DimPlot(data, 
+        group.by = "seurat_clusters",
+        label = TRUE,
+        pt.size = 2,
+        label.size = 6
+      ) + 
+  NoLegend() +
+  theme(text = element_text(size = 20))
+```
+
+```{r eval = FALSE}
+DimPlot(data, 
+        group.by = "seurat_clusters",
+        split.by = "sample",
+        label = TRUE,
+        pt.size = 2,
+        label.size = 6,
+        ncol = 4
+        ) + 
+  NoLegend() +
+  theme(text = element_text(size = 20)) 
+```
+
+# TCR
+
+```{r eval = FALSE}
+S1 <- read.csv(glue("{proj_dir}/data/CSF_02/jobs/7974/7974/outs/per_sample_outs/7974/vdj_t/filtered_contig_annotations.csv"))
+S2 <- read.csv(glue("{proj_dir}/data/CSF_06/jobs/8194/8194/outs/per_sample_outs/8194/vdj_t/filtered_contig_annotations.csv"))
+S3 <- read.csv(glue("{proj_dir}/data/CSF_02/jobs/7974/7974/outs/per_sample_outs/7974/vdj_b/filtered_contig_annotations.csv"))
+S4 <- read.csv(glue("{proj_dir}/data/CSF_06/jobs/8194/8194/outs/per_sample_outs/8194/vdj_b/filtered_contig_annotations.csv"))
+
+contig_list_TCR <- list(S1, S2)
+contig_list_BCR <- list(S3, S4)
+
+# TCR
+combined_tcr <- combineTCR(contig_list_TCR, 
+                ID = sample_list, 
+                samples = c("CSF_02", "CSF_06")
+                )
+
+# rename to match sc
+combined_tcr$CSF_02_7974$barcode <- str_remove_all(combined_tcr$CSF_02_7974$barcode, pattern = "-1$|-2$|-3$")
+combined_tcr$CSF_06_8194$barcode <- str_remove_all(combined_tcr$CSF_06_8194$barcode, pattern = "-1$|-2$|-3$")
+
+# BCR
+combined_bcr <- combineBCR(contig_list_BCR,
+                ID = sample_list,
+                samples = c("CSF_02", "CSF_06")
+                )
+
+# rename to match sc
+combined_bcr$CSF_02_7974$barcode <- str_remove_all(combined_bcr$CSF_02_7974$barcode, pattern = "-1$|-2$|-3$")
+combined_bcr$CSF_06_8194$barcode <- str_remove_all(combined_bcr$CSF_06_8194$barcode, pattern = "-1$|-2$|-3$")
+
+list.receptors <- c(combined_tcr, combined_bcr)
+
+data <- combineExpression(
+  list.receptors, 
+  data, 
+  cloneCall="aa", 
+  proportion = FALSE, 
+  cloneTypes=c(Single=1, Small=5, Medium=20, Large=50, Hyperexpanded=100))
+
+# save annotated object with TCR data
+saveRDS(data, glue("{out_dir}/all_cells_integrated.rds"))
+```
+
+```{r results='markup'}
+data@meta.data[, c("sample", "Frequency", "cloneType", "CTaa", "annot")] %>% 
+  filter(annot %in% c("T cells", "B cells")) %>% 
+  unique() %>% 
+  filter(!is.na(cloneType)) %>% 
+  arrange(desc(Frequency)) %>% 
+  DT::datatable(rownames = FALSE)
+```
+
+```{r fig.width=9}
+colorblind_vector <- colorRampPalette(rev(c("#0D0887FF", "#47039FFF", 
+              "#7301A8FF", "#9C179EFF", "#BD3786FF", "#D8576BFF",
+              "#ED7953FF","#FA9E3BFF", "#FDC926FF", "#F0F921FF")))
+
+slot(data, "meta.data")$cloneType <- factor(slot(data, "meta.data")$cloneType, 
+                levels = c("Hyperexpanded (50 < X <= 100)", 
+                           "Large (20 < X <= 50)", 
+                            "Medium (5 < X <= 20)", 
+                            "Small (1 < X <= 5)", 
+                            "Single (0 < X <= 1)", NA))
+
+colorblind_vector <- colorblind_vector(5)
+names(colorblind_vector) <- c("Hyperexpanded (50 < X <= 100)", 
+                           "Large (20 < X <= 50)", 
+                            "Medium (5 < X <= 20)", 
+                            "Small (1 < X <= 5)", 
+                            "Single (0 < X <= 1)")
+```
+
+```{r fig.width=9}
+DimPlot(data, group.by = "cloneType", pt.size = 1, order = TRUE) +
+    scale_color_manual(values = colorblind_vector, na.value="grey") + 
+  theme(plot.title = element_blank(),
+        text = element_text(size = 18))
+```
+
+```{r fig.width=11}
+DimPlot(data, group.by = "cloneType", pt.size = 1, order = TRUE, split.by = "sample") +
+    scale_color_manual(values = colorblind_vector, na.value="grey") + 
+  theme(plot.title = element_blank(),
+        text = element_text(size = 18))
+```
+
+```{r fig.width=9}
+"Number of clones (not cells!) per type and sample"
+df <- data@meta.data[, c("sample", "cloneType", "CTaa", "annot")] %>% 
+  filter(!is.na(CTaa)) %>% 
+  filter(annot %in% c("T cells", "B cells"))
+rownames(df) <- NULL
+df <- unique(df)
+table(df[, c("sample", "cloneType", "annot")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(x=sample, y=Freq, fill=cloneType)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  geom_text(aes(label=Freq), vjust=-0.5, color="black",
+            position = position_dodge(0.9), size=3.5) +
+  facet_grid(.~annot) +
+  scale_fill_manual(values = colorblind_vector) +
+  theme_classic() +
+  theme(plot.title = element_blank(),
+        text = element_text(size = 18))
+```
+
+<a href="#top">Back to top</a>
+
