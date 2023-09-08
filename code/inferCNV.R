@@ -2,8 +2,8 @@
 
 # parameters
 subproject <- "CSF_05"
-patient <- "4723"
-ref_cell_type <- c("T cells 3", "T cells 4", "T cells 1", "pDC 9", "Myeloid 6_2", "B cells 12")
+patient <- "4759"
+ref_cell_type <- c("T cells 4", "T cells 2", "T cells 1", "Myeloid 10", "pDC 12")
 
 # Load packages
 library(Seurat)
