@@ -83,6 +83,21 @@ purrr::map(subprojects, function(subproj){
   })
 })
 
+# DLBCL
+subprojects <- c("CSF_01", "CSF_01", "CSF_02", "CSF_03", "CSF_05", "CSF_05")
+patients <- c("4608", "5700", "7921", "8102", "8084", "4759")
+
+for (i in 1:length(subprojects)){
+  print(i)
+  print(patients[i])
+
+  render(
+    glue("/scratch/devel/pnieto/projects/CSF/analysis/{subprojects[i]}_{patients[i]}_DLBCL_analysis.Rmd"),
+    output_format = "html_document",
+    output_file = glue("/scratch/devel/pnieto/projects/CSF/docs/DLBCL_analysis_{subprojects[i]}_{patients[i]}_.html")
+  )
+}
+
 ###
 
 # formatting of the webpage
@@ -114,6 +129,9 @@ render("/scratch/devel/pnieto/projects/CSF/analysis/05_CSF_Integration.Rmd",
        output_format = "html_document",
        output_file = "/scratch/devel/pnieto/projects/CSF/docs/05_CSF_Integration.html")
 
+render("/scratch/devel/pnieto/projects/CSF/analysis/06_Disease_entity_analysis.Rmd",
+       output_format = "html_document",
+       output_file = "/scratch/devel/pnieto/projects/CSF/docs/06_Disease_entity_analysis.html")
+
 dir.create("/scratch/devel/pnieto/projects/CSF/docs/00_CSF_QC_cellranger_files")
 dir.create("/scratch/devel/pnieto/projects/CSF/docs/00_CSF_QC_cellranger_files/figure-html")
-
