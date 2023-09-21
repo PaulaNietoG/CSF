@@ -11,13 +11,21 @@ navbar:
     href: 01_filtering.html
   - text: Preliminary
     href: 02_CSF_preliminary_annotation.html
+  - text: CNV
+    href: 03_CSF_CNV_Results.html
+  - text: Annotation
+    href: 03_CSF_automatic_annotation.html
+  - text: Integration
+    href: 05_CSF_Integration.html
+  - text: Disease
+    href: 06_Disease_entity_analysis.html
   right:
   - icon: fab fa-gitlab
     text: Source code
     href: https://gitlab.com/nietogarciapaula/CSF
 output:
   workflowr::wflow_html:
-    toc: true 
-    number_sections: true  
-    theme: united  
-    highlight: tango 
+    toc: true
+    number_sections: true
+    theme: united
+    highlight: tango

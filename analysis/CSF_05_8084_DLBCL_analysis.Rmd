@@ -1,0 +1,279 @@
+---
+title: "DLBCL analysis"
+subtitle: "CSF_05 - 8084"
+author:
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.crg.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+```{r surce-utils, include=FALSE}
+tryCatch({
+  source("/scratch/devel/pnieto/scripts/r_utils/utils.R")
+}, error = function(e) {
+  source("S:/scripts/r_utils/utils.R")
+})
+library(dittoSeq)
+```
+
+```{r set-params}
+root <- get_root_dir()
+proj_name <- "CSF_05"
+library <- "8084" 
+proj_dir <- glue("{root}/CSF/data/{proj_name}")
+data_dir <- glue("{proj_dir}/output/05_CellTypist")
+out_dir <- glue("{proj_dir}/output/DLBCL")
+```
+
+```{r create-output-folder}
+# create output folder if it doesn't exist yet
+if (!file.exists(out_dir)) {
+  dir.create(out_dir)
+}
+```
+
+# Recluster B cells
+
+```{r normalize and cluster}
+data <- readRDS(glue("{data_dir}/{library}_HR_automatic_annotated_CT.rds"))
+data <- subset(data, subset = annot == "B cells")
+
+data <- data %>%
+  NormalizeData(verbose = FALSE) %>% 
+  FindVariableFeatures(nfeatures = 2000, verbose = FALSE) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(verbose = FALSE) %>%
+  RunUMAP(dims = 1:20, verbose = FALSE) %>%
+  FindNeighbors(dims = 1:20, verbose = FALSE) %>%
+  FindClusters(resolution = 1, verbose = FALSE)
+```
+
+```{r fig.width=12}
+DimPlot(data, pt.size = 1.5, group.by = "seurat_clusters") + 
+  DimPlot(data, pt.size = 1.5, group.by = "annot_2", cols = as.vector(pals::polychrome()))
+```
+
+```{r find cluster markers, eval = FALSE}
+markers <- FindAllMarkers(
+  object = data,
+  only.pos = TRUE
+)
+
+# save file
+saveRDS(markers, glue("{out_dir}/{proj_name}_{library}_Bcell_cluster_markers.rds"))
+# write to excel file
+openxlsx::write.xlsx(split(markers, markers$cluster), 
+                     file = glue("{out_dir}/{proj_name}_{library}_Bcell_cluster_markers.xlsx"),
+                     overwrite = TRUE)
+```
+
+# DLBCL signatures
+
+ABC or GCB subtypes.
+
+```{r}
+source(glue("{root}/CSF/code/markers_dlbcl.R"))
+```
+
+```{r fig.width=15, fig.height=10}
+FeaturePlot(
+  data,
+  features = DLBCL$GCB,
+  order = TRUE,
+  cols = c("#ADD8E633", "red"),
+  pt.size = 1
+) + plot_annotation(
+  title = 'DLBCL GCB signature genes')
+```
+
+```{r fig.width=15, fig.height=10}
+FeaturePlot(
+  data,
+  pt.size = 1,
+  features = DLBCL$ABC,
+  order = TRUE,
+  cols = c("#ADD8E633", "red"),
+) + plot_annotation(
+  title = 'DLBCL ABC signature genes')
+```
+
+```{r fig.width=12, fig.height=5}
+DotPlot(data,
+        features = DLBCL,
+        cols = "RdYlBu"
+) +
+  RotatedAxis()
+```
+
+```{r}
+data <- UCell::AddModuleScore_UCell(data, features = DLBCL, name = "")
+```
+
+```{r}
+VlnPlot(data,
+        features = names(DLBCL),
+        group.by = "seurat_clusters",
+        same.y.lims = TRUE
+        ) 
+```
+
+***
+
+# [Schmitz et al. signatures](https://www.nejm.org/doi/10.1056/NEJMoa1801445)
+
+```{r}
+signatures <- openxlsx::read.xlsx(glue("{root}/CSF/files/SignatureDB_annotation_012422.xlsx"))
+signatures <- signatures %>% 
+  filter(Reference == "Staudt Lab unpublished") %>%
+  filter(Signature.subcategory == "Diffuse large B cell lymphoma") %>% 
+  select(`Short.signature.name`, `Gene.symbol`)
+signatures <- split(signatures$Gene.symbol, signatures$Short.signature.name)
+signatures <- signatures[1:3]
+```
+
+```{r}
+data <- UCell::AddModuleScore_UCell(data, features = signatures, name = "")
+signature_names <- tail(colnames(data@meta.data), 3)
+```
+
+```{r}
+VlnPlot(data,
+        features = signature_names,
+        group.by = "seurat_clusters", 
+        same.y.lims = TRUE
+        ) 
+```
+
+***
+
+# Kappa or Lambda?
+
+```{r fig.width=10, fig.height=9}
+FeaturePlot(
+  data,
+  features = c("IGKC", "IGLC1", "IGLC2", "IGLC3"),
+  order = TRUE,
+  pt.size = 1.5,
+  ncol = 2,
+  cols = c("#ADD8E633", "darkgreen"),
+)
+```
+
+```{r}
+# get expression of kappa and lambda genes
+k_l <- FetchData(data, vars = c("IGKC", "IGLC1", "IGLC2", "IGLC3", "IGLC4", "IGLC5", "IGLC6"), slot = "counts")
+# replace 0s by 0.01 to prevent error
+k_l[k_l==0] <- 0.1
+# divide IGKC between max IGLC
+k_l$IGKC_score <- k_l$IGKC / (k_l$IGKC + apply(k_l[, 2:7], 1, max))
+# add metadata
+data <- AddMetaData(data, metadata = k_l)
+```
+
+```{r}
+# library(ggbeeswarm)
+data@meta.data[, c("seurat_clusters", "IGKC_score")] %>% 
+  ggplot() +
+  aes(y = IGKC_score, x = seurat_clusters, color = seurat_clusters) +
+  geom_boxplot() +
+  geom_jitter() +
+  coord_flip() +
+  theme_minimal() +
+  theme(text = element_text(size =16))
+```
+
+# Has CNVs?
+
+```{r}
+data@meta.data <- data@meta.data %>%
+  mutate(hasCNV = rowSums(select(., contains("has_cnv")) == TRUE) > 0)
+
+DimPlot(
+  data,
+  group.by = "hasCNV",
+  order = TRUE,
+  pt.size = 1.5,
+  cols = list("TRUE" = "maroon", "FALSE" = "#ADD8E633"),
+)
+```
+
+```{r CNV plots, fig.width=12, fig.height=20}
+# plots
+DimPlot(
+  data,
+  group.by = grep(colnames(data@meta.data), pattern = "has_cnv", value = TRUE),
+  cols = list("TRUE" = "maroon", "FALSE" = "#ADD8E633"), 
+  ncol = 4
+  ) + 
+  plot_layout(guides = "collect") & 
+  theme(legend.position = 'bottom')
+```
+
+# Expanded BCR clones
+
+```{r}
+top_clones <- data@meta.data[, c("Frequency", "cloneType", "CTaa")] %>% 
+  unique() %>% 
+  filter(!is.na(cloneType)) %>% 
+  arrange(desc(Frequency)) %>% 
+  filter(Frequency >1) %>% 
+  pull(CTaa)
+```
+
+```{r}
+Idents(data) <- "CTaa"
+purrr::map(top_clones, function(aa){
+  hl <- CellsByIdentities(data, idents = aa)
+  DimPlot(
+    data,
+    cells.highlight = hl,
+    cols.highlight = "purple4",
+    sizes.highlight = 2
+  ) +
+    NoLegend() +
+    labs(title = aa)
+})
+```
+
+```{r}
+# save object
+saveRDS(data, glue("{out_dir}/{proj_name}_{library}_Bcells.rds"))
+```
+
+```{r fig.width=12}
+DimPlot(data, pt.size = 1.5, group.by = "seurat_clusters") + 
+  DimPlot(data, pt.size = 1.5, group.by = "annot_2", cols = as.vector(pals::polychrome()))
+```
+
+# Gene expression
+
+```{r fig.width=12, fig.height=10}
+b_genes <- c("BCL2", "BCL6", "MME", "MYD88", "PWWP3A", "MYC", "MS4A1", "CD79A", "CD19", "CD200")
+FeaturePlot(
+  data,
+  features = b_genes,
+  order = TRUE,
+  cols = c("#ADD8E633", "blue4"),
+  pt.size = 1
+)
+```
+
+```{r fig.width=8}
+VlnPlot(data, b_genes, group.by = "seurat_clusters", same.y.lims = TRUE, ncol = 5) & labs(x = "", y = "")
+```

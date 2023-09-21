@@ -1,0 +1,31 @@
+---
+title: "Disease entity analysis"
+author: 
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.crg.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    self_contained: yes
+    mode: selfcontained
+    theme: united  # many options for theme, this one is my favorite.
+    highlight: tango  # specifies the syntax highlighting style
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# DLBCL
+
+* [Patient 01 - CSF_01 - 4608](DLBCL_analysis_CSF_01_4608_.html)
+* [Patient 04 - CSF_01 - 5700 (neurosarcoidosis, control)](DLBCL_analysis_CSF_01_5700_.html)
+* [Patient 06 - CSF_02 - 7921](DLBCL_analysis_CSF_02_7921_.html)
+* [Patient 10 - CSF_03 - 8102](DLBCL_analysis_CSF_03_8102_.html)
+* [Patient 10 - CSF_05 - 8084](DLBCL_analysis_CSF_05_8084_.html)
+* [Patient 15 - CSF_05 - 4759](DLBCL_analysis_CSF_05_4759_.html)
+
