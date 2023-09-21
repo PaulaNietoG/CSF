@@ -126,7 +126,7 @@ FeaturePlot(
 
 CD45 expression (immune cells)
 
-```{r fig.width=9}
+```{r fig.width=9, fig.height = 8}
 Idents(data) <- paste0("RNA_snn_res.", res)
 FeaturePlot(
   data,
@@ -134,7 +134,7 @@ FeaturePlot(
   features = "PTPRC",
   cols = c("#ADD8E633", "#E46726"),
   order = TRUE,
-  label = TRUE
+  label = FALSE
   )
 ```
 

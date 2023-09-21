@@ -132,7 +132,7 @@ FeaturePlot(
 
 CD45 expression (immune cells)
 
-```{r fig.width=9}
+```{r fig.width=9, fig.height = 8}
 Idents(data) <- paste0("RNA_snn_res.", res)
 FeaturePlot(
   data,
@@ -140,7 +140,7 @@ FeaturePlot(
   features = "PTPRC",
   cols = c("#ADD8E633", "#E46726"),
   order = TRUE,
-  label = TRUE
+  label = FALSE
   )
 ```
 
@@ -450,6 +450,27 @@ colnames(t2) <- c("BCRs", "% Cells")
 
 merge(t1, t2) %>% 
   DT::datatable(rownames = NULL, caption = paste(unique(data$sample),unique(data$project)))
+```
+
+***
+
+```{r fig.width=10, fig.height=9}
+FeaturePlot(
+  subset(data, annot == "B cells"),
+  features = c("IGLC1", "IGLC2", "IGLC3", "IGKC"),
+  # order = TRUE,
+  pt.size = 1.5,
+  ncol = 2,
+  cols = c("#ADD8E633", "darkgreen"),
+)
+```
+
+```{r}
+VlnPlot(
+  subset(data, annot == "B cells"),
+  features = c("IGLC1", "IGLC2", "IGLC3", "IGKC"),
+  group.by = "annot_2"
+)
 ```
 
 <a href="#top">Back to top</a>

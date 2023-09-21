@@ -132,7 +132,7 @@ FeaturePlot(
 
 CD45 expression (immune cells)
 
-```{r fig.width=9}
+```{r fig.width=9, fig.height = 8}
 Idents(data) <- paste0("RNA_snn_res.", res)
 FeaturePlot(
   data,
@@ -140,7 +140,7 @@ FeaturePlot(
   features = "PTPRC",
   cols = c("#ADD8E633", "#E46726"),
   order = TRUE,
-  label = TRUE
+  label = FALSE
   )
 ```
 
@@ -483,4 +483,41 @@ DotPlot(data,
   RotatedAxis() +
   scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
 ```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("EPCAM", "PTPRC"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("TERT"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("INSR", "HSPG2", "VWA1"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
 

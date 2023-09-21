@@ -134,7 +134,7 @@ FeaturePlot(
 
 CD45 expression (immune cells)
 
-```{r fig.width=9}
+```{r fig.width=9, fig.height = 8}
 Idents(data) <- paste0("RNA_snn_res.", res)
 FeaturePlot(
   data,
@@ -142,7 +142,7 @@ FeaturePlot(
   features = "PTPRC",
   cols = c("#ADD8E633", "#E46726"),
   order = TRUE,
-  label = TRUE
+  label = FALSE
   )
 ```
 
@@ -468,6 +468,139 @@ colnames(t2) <- c("BCRs", "% Cells")
 merge(t1, t2) %>% 
   DT::datatable(rownames = NULL, caption = paste(unique(data$sample),unique(data$project)))
 ```
+
+# DLBCL signatures
+
+```{r}
+source(glue("{root}/CSF/code/markers_dlbcl.R"))
+```
+
+```{r fig.width=15, fig.height=10}
+FeaturePlot(
+  subset(data, annot == "B cells"),
+  features = DLBCL$GCB,
+  order = TRUE,
+  cols = c("#ADD8E633", "red"),
+  pt.size = 1
+) + plot_annotation(
+  title = 'DLBCL GCB signature genes')
+```
+
+```{r fig.width=15, fig.height=10}
+FeaturePlot(
+  subset(data, annot == "B cells"),
+  pt.size = 1,
+  features = DLBCL$ABC,
+  order = TRUE,
+  cols = c("#ADD8E633", "red"),
+) + plot_annotation(
+  title = 'DLBCL ABC signature genes')
+```
+
+```{r fig.width=12, fig.height=5}
+DotPlot(subset(data, annot == "B cells"),
+        group.by = "annot_2",
+        features = DLBCL,
+        cols = "RdYlBu"
+) +
+  RotatedAxis()
+```
+
+```{r}
+data <- UCell::AddModuleScore_UCell(data, features = DLBCL, name = "")
+```
+
+```{r fig.width=12}
+FeaturePlot(subset(data, annot == "B cells"),
+            features = names(DLBCL),
+            order = TRUE,
+            pt.size = 2
+            ) &
+  viridis::scale_color_viridis() &
+  theme(text = element_text(size = 20))
+```
+
+```{r}
+DotPlot(subset(data, annot == "B cells"),
+        features = names(DLBCL),
+        group.by = 'annot_2'
+        ) +
+  RotatedAxis() +
+  scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
+```
+
+***
+
+[Schmitz et al. signatures](https://www.nejm.org/doi/10.1056/NEJMoa1801445)
+
+```{r}
+signatures <- openxlsx::read.xlsx(glue("{root}/CSF/files/SignatureDB_annotation_012422.xlsx"))
+signatures <- signatures %>% 
+  filter(Reference == "Staudt Lab unpublished") %>%
+  filter(Signature.subcategory == "Diffuse large B cell lymphoma") %>% 
+  select(`Short.signature.name`, `Gene.symbol`)
+signatures <- split(signatures$Gene.symbol, signatures$Short.signature.name)
+signatures <- signatures[1:3]
+```
+
+```{r}
+data <- UCell::AddModuleScore_UCell(data, features = signatures, name = "")
+signature_names <- tail(colnames(data@meta.data), 3)
+```
+
+```{r fig.width=12}
+FeaturePlot(subset(data, annot == "B cells"),
+            features = signature_names,
+            order = TRUE,
+            pt.size = 2
+            ) &
+  viridis::scale_color_viridis() &
+  theme(text = element_text(size = 20))
+```
+
+```{r}
+DotPlot(subset(data, annot == "B cells"),
+        features = signature_names,
+        group.by = 'annot_2'
+        ) +
+  RotatedAxis() +
+  scale_color_gradient2(low = 'blue', mid = 'white', high = 'red')
+```
+
+***
+
+Relevant genes/mutations for this patient:
+
+```{r fig.width=10, fig.height=9}
+FeaturePlot(
+  subset(data, annot == "B cells"),
+  features = c("MS4A1", "BCL2", "BCL6", "MME", "MYC"),
+  order = TRUE,
+  pt.size = 1.5,
+  cols = c("#ADD8E633", "blue"),
+)
+```
+
+***
+
+```{r fig.width=10, fig.height=9}
+FeaturePlot(
+  subset(data, annot == "B cells"),
+  features = c("IGLC1", "IGLC2", "IGLC3", "IGKC"),
+  order = TRUE,
+  pt.size = 1.5,
+  ncol = 2,
+  cols = c("#ADD8E633", "darkgreen"),
+)
+```
+
+```{r}
+VlnPlot(
+  subset(data, annot == "B cells"),
+  features = c("IGLC1", "IGLC2", "IGLC3", "IGKC")
+)
+```
+
 
 <a href="#top">Back to top</a>
 

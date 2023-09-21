@@ -126,7 +126,7 @@ FeaturePlot(
 
 CD45 expression (immune cells)
 
-```{r fig.width=9}
+```{r fig.width=9, fig.height = 8}
 Idents(data) <- paste0("RNA_snn_res.", res)
 FeaturePlot(
   data,
@@ -134,7 +134,7 @@ FeaturePlot(
   features = "PTPRC",
   cols = c("#ADD8E633", "#E46726"),
   order = TRUE,
-  label = TRUE
+  label = FALSE
   )
 ```
 
@@ -656,3 +656,76 @@ FeaturePlot(
   pt.size = 1
   )
 ```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("CDK6", "TRRAP", "PIK3CG", "BRAF", "KMT2C"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  # label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("SOX2", "MYC", "NESTIN", "PROM", "FUT4", "ITGA6", "L1CAM", "CD44"),
+  cols = c("#ADD8E633", "#E46726"),
+  # order = TRUE,
+  # label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("CUX1", "GFAP"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  # label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("COL6A2", "ABCC3", "COL8A1", "FAM20A", "ADM", "CTHRC1", "PDPN", "IBSP", "MIR210HG", "GPX8", "MYL9", "PDLIM4"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  # label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("CHST9", "CSDC2", "ENHO", "FERMT1", "IGFN1", "LINC00836", "MGAT4C", "SHANK2", "VIPR2"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  # label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("JCHAIN", "LILRA4", "IL3RA"),
+  cols = c("#ADD8E633", "#E46726"),
+  order = TRUE,
+  # label = TRUE,
+  label.size = 3,
+  pt.size = 1
+  )
+```
+
