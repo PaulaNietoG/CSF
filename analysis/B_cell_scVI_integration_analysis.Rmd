@@ -1,0 +1,219 @@
+---
+title: "B cells scVI integrated"
+author:
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.crg.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+```{r surce-utils, include=FALSE}
+tryCatch({
+  source("/scratch/devel/pnieto/scripts/r_utils/utils.R")
+}, error = function(e) {
+  source("S:/scripts/r_utils/utils.R")
+})
+library(dittoSeq)
+```
+
+```{r set-params}
+root <- get_root_dir()
+proj_dir <- glue("{root}/CSF")
+data_dir <- glue("{proj_dir}/output/integration/B cells")
+out_dir <- data_dir
+```
+
+```{r create-output-folder}
+# create output folder if it doesn't exist yet
+if (!file.exists(out_dir)) {
+  dir.create(out_dir)
+}
+```
+
+```{r}
+data <- readRDS(glue("{data_dir}/B_cells_integrated_K_score.rds"))
+```
+
+```{r load and process data, eval = FALSE}
+data <- readRDS(glue("{data_dir}/B_cells_merged.rds"))
+
+data <- data %>%
+  NormalizeData() %>% 
+  FindVariableFeatures(nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(verbose = FALSE) %>%
+  RunUMAP(dims = 1:20, verbose = FALSE, reduction.key = "UMAP_scVI_", reduction.name = "umap_scvi")
+```
+
+```{r scVI metadata and UMAP coordinates, eval = FALSE}
+# Read the CSV file with the clusters from scVI
+clusters <- read.csv(glue("{data_dir}/B_cells_scVI_clusters.csv"))
+rownames(clusters) <- clusters$X
+clusters$X <- NULL
+# add clusters metadata to seu obj
+data <- AddMetaData(data, metadata = clusters)
+
+umap <- read.csv(glue("{data_dir}/B_cells_scVI_UMAP.csv"))
+rownames(umap) <- umap$X
+umap$X <- NULL
+colnames(umap) <- c("UMAPscVI_1", "UMAPscVI_2")
+data@reductions$umap_scvi@cell.embeddings <- as.matrix(umap)
+```
+
+```{r}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "leiden_res_1",
+  cols = ggsci::pal_d3("category20")(13),
+  label = TRUE
+  )
+```
+
+# Kappa or Lambda clones
+
+```{r fig.width=10, fig.height=12}
+FeaturePlot(
+  data,
+  features = c("IGKC", "IGLC1", "IGLC2", "IGLC3", "IGLC4", "IGLC5", "IGLC6"),
+  order = TRUE,
+  pt.size = 1.5,
+  ncol = 2,
+  cols = c("#ADD8E633", "darkgreen"),
+)
+```
+
+```{r compute IGKC score, eval = FALSE}
+# get expression of kappa and lambda genes
+k_l <- FetchData(data, vars = c("IGKC", "IGLC1", "IGLC2", "IGLC3", "IGLC4", "IGLC5", "IGLC6"), slot = "counts")
+# divide IGKC between max IGLC
+k_l$IGKC_score <- k_l$IGKC / (k_l$IGKC + apply(k_l[, 2:7], 1, max))
+# add metadata
+data <- AddMetaData(data, metadata = k_l)
+data@meta.data[, c("IGKC", "IGLC1", "IGLC2", "IGLC3", "IGLC4", "IGLC5", "IGLC6")] <- NULL
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = "IGKC_score",
+  # order = TRUE,
+  pt.size = 1,
+  cols = c("#ADD8E633", "orange4"),
+)
+```
+
+```{r}
+data@meta.data[, c("leiden_res_1", "IGKC_score")] %>% 
+  ggplot() +
+  aes(y = IGKC_score, x = as.factor(leiden_res_1), color = as.factor(leiden_res_1)) +
+  geom_boxplot() +
+  geom_jitter() +
+  stat_summary(fun.y=mean, geom="point", shape=18, size=4) +
+  coord_flip() +
+  theme_minimal() +
+  theme(text = element_text(size =16)) +
+  ggsci::scale_color_d3("category20") +
+  NoLegend() +
+  labs(x = "IGKC score", y = "cluster")
+```
+
+Binarize IGKC score
+
+```{r binarize IGKC score, eval = FALSE}
+data$IGKC_score_bin <- "Unknown"
+data$IGKC_score_bin[data$IGKC_score > 0.5] <- "Kappa"
+data$IGKC_score_bin[data$IGKC_score < 0.5] <- "Lambda"
+```
+
+```{r}
+k_l_col <- list("Kappa" = "#d6604d", "Lambda" = "#4393c3", "Unknown" = "grey")
+DimPlot(
+  data,
+  group.by = "IGKC_score_bin",
+  pt.size = 1,
+  cols = k_l_col
+)
+```
+
+```{r}
+# piechart at the top
+p1 <- table(data@meta.data[, c("leiden_res_1", "IGKC_score_bin")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(x="", y=Freq, fill=IGKC_score_bin)) +
+  geom_bar(width = 1, stat = "identity", position = "fill") +
+  coord_polar("y", start=0) + 
+  facet_grid(.~ leiden_res_1) +
+  scale_fill_manual(values = k_l_col) +
+  theme_void() + 
+  theme(panel.spacing = unit(0.2, "lines"))
+
+# actual barplot
+p2 <- table(data@meta.data[, c("leiden_res_1", "patient")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=patient, y=Freq, x=leiden_res_1)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Cluster", y = "Proportion", fill = "Patient") +
+  ggsci::scale_fill_d3("category20")
+
+# patchwork
+(p1 + p2)  +
+  plot_layout(heights = c(1, 10), guides = "collect") &
+  theme(legend.justification = "left") &
+  guides(fill=guide_legend(ncol=2))
+```
+
+```{r recode patient, eval = FALSE}
+data$disease <- "none"
+data$disease[data$patient %in% c("P01", "P06", "P10", "P11", "P15")] <- "Lymphoma"
+data$disease[data$patient %in% c("P02", "P05")] <- "Glioblastoma"
+data$disease[data$patient %in% c("P03", "P08", "P09", "P12", "P16")] <- "Brain met"
+data$disease[data$patient %in% c("P04", "P07", "P13", "P14")] <- "Inflammatory"
+```
+
+```{r}
+DimPlot(
+  data, 
+  group.by = "disease",
+  cols = as.vector(pals::trubetskoy()),
+  pt.size = 1,
+  shuffle = TRUE
+)
+```
+
+```{r}
+p2 <- table(data@meta.data[, c("leiden_res_1", "disease")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=disease, y=Freq, x=leiden_res_1)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Cluster", y = "Proportion", fill = "Patient") +
+  scale_fill_manual(values = as.vector(pals::trubetskoy()))
+
+# patchwork
+(p1 + p2)  +
+  plot_layout(heights = c(1, 10), guides = "collect") &
+  theme(legend.justification = "left")
+```
+
+```{r save obj, eval = FALSE}
+saveRDS(data, glue("{data_dir}/B_cells_integrated_K_score.rds"))
+```
+
