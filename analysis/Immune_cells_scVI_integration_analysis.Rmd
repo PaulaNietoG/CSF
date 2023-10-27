@@ -1,0 +1,514 @@
+---
+title: "Immune cells scVI integrated"
+author:
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.crg.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+```{r surce-utils, include=FALSE}
+tryCatch({
+  source("/scratch/devel/pnieto/scripts/r_utils/utils.R")
+}, error = function(e) {
+  source("S:/scripts/r_utils/utils.R")
+})
+library(dittoSeq)
+```
+
+```{r set-params}
+root <- get_root_dir()
+proj_dir <- glue("{root}/CSF")
+data_dir <- glue("{proj_dir}/output/integration/Immune cells")
+out_dir <- data_dir
+```
+
+```{r create-output-folder}
+# create output folder if it doesn't exist yet
+if (!file.exists(out_dir)) {
+  dir.create(out_dir)
+}
+```
+
+```{r}
+data <- readRDS(glue("{data_dir}/Immune_cells_annotated_filtered_lv2.rds"))
+Idents(data) <- "leiden_res_0.5"
+```
+
+```{r}
+# set up color palettes
+pal_patients <- as.vector(pals::polychrome())
+pal_projects <-as.vector(pals::alphabet())
+pal_disease <-as.vector(pals::trubetskoy())
+pal_clusters <- c(ggsci::pal_d3("category20")(20), ggsci::pal_d3("category20b")(20))
+pal_gene_exp <- c("#ADD8E633", "#E46726")
+pal_annot <- as.vector(pals::glasbey())
+pal_clones <- colorRampPalette(rev(c("#0D0887FF", "#47039FFF", 
+              "#7301A8FF", "#9C179EFF", "#BD3786FF", "#D8576BFF",
+              "#ED7953FF","#FA9E3BFF", "#FDC926FF", "#F0F921FF")))(5)
+names(pal_clones) <- c("Hyperexpanded (50 < X <= 100)", 
+                           "Large (20 < X <= 50)", 
+                            "Medium (5 < X <= 20)", 
+                            "Small (1 < X <= 5)", 
+                            "Single (0 < X <= 1)")
+```
+
+# Integration and Clustering
+
+```{r load and process data, eval = FALSE}
+data <- readRDS(glue("{data_dir}/Immune_cells_merged.rds"))
+
+data <- data %>%
+  NormalizeData() %>% 
+  FindVariableFeatures(nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(verbose = FALSE) %>%
+  RunUMAP(dims = 1:20, verbose = FALSE) %>% 
+  RunUMAP(dims = 1:20, verbose = FALSE, reduction.key = "UMAP_scVI_", reduction.name = "umap_scvi")
+
+# fix mistaken patient
+data$patient[data$library == 3885] <- "P12"
+data$patient_sample <- paste(data$patient, data$sample, sep = "_")
+Idents(data) <- "leiden_res_0.5"
+```
+
+```{r recode patient, eval = FALSE}
+data$disease <- "none"
+data$disease[data$patient %in% c("P01", "P06", "P10", "P11", "P15")] <- "Lymphoma"
+data$disease[data$patient %in% c("P02", "P05")] <- "Glioblastoma"
+data$disease[data$patient %in% c("P03", "P08", "P09", "P12", "P16")] <- "Brain met"
+data$disease[data$patient %in% c("P04", "P07", "P13", "P14")] <- "Inflammatory"
+```
+
+```{r scVI metadata and UMAP coordinates, eval = FALSE}
+# Read the CSV file with the clusters from scVI
+clusters <- read.csv(glue("{data_dir}/Immune_cells_scVI_clusters.csv"))
+rownames(clusters) <- clusters$X
+clusters$X <- NULL
+# add clusters metadata to seu obj
+data <- AddMetaData(data, metadata = clusters)
+
+umap <- read.csv(glue("{data_dir}/Immune_cells_scVI_UMAP.csv"))
+rownames(umap) <- umap$X
+umap$X <- NULL
+colnames(umap) <- c("UMAPscVI_1", "UMAPscVI_2")
+data@reductions$umap_scvi@cell.embeddings <- as.matrix(umap)
+```
+
+Uncorrected UMAP
+
+```{r fig.width=10}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap", 
+  group.by = "patient_sample",
+  shuffle = TRUE,
+  cols = pal_patients
+  ) +
+  DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap", 
+  group.by = "project",
+  shuffle = TRUE,
+  cols = pal_projects
+  )
+```
+
+scVI corrected UMAP
+
+```{r fig.width=10}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "patient_sample",
+  shuffle = TRUE,
+  cols = pal_patients
+  ) +
+  DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "project",
+  shuffle = TRUE,
+  cols = pal_projects
+  )
+```
+
+```{r}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "leiden_res_0.5",
+  cols = pal_clusters,
+  label = TRUE
+  )
+```
+
+
+```{r find cluster markers, eval = FALSE}
+Idents(data) <- "leiden_res_0.5"
+markers <- FindAllMarkers(
+  object = data,
+  only.pos = TRUE
+)
+
+# save file
+saveRDS(markers, glue("{out_dir}/markers/marker_genes_res0.5_scVI.rds"))
+# write to excel file
+openxlsx::write.xlsx(split(markers, markers$cluster), 
+                     file = glue("{out_dir}/markers/marker_genes_res0.5_scVI.xlsx"),
+                     overwrite = TRUE)
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("CD3E", "CD3D", "CD68", "MS4A1"),
+  order = TRUE,
+  pt.size = 1,
+  ncol = 2,
+  label = TRUE,
+  reduction = "umap_scvi", 
+  cols = pal_gene_exp,
+)
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("CD4", "CD8B"),
+  order = TRUE,
+  pt.size = 1,
+  ncol = 2,
+  label = TRUE,
+  reduction = "umap_scvi", 
+  cols = pal_gene_exp,
+)
+```
+
+```{r}
+VlnPlot(
+  data,
+  features = c("CD4", "CD8B"),
+  pt.size = 0.01
+)
+```
+
+```{r fig.height=9}
+p1 <- table(data@meta.data[, c("leiden_res_0.5", "disease")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=disease, y=Freq, x=leiden_res_0.5)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Cluster", y = "Proportion", fill = "Disease") +
+  scale_fill_manual(values = pal_disease) +
+  RotatedAxis() 
+
+p2 <- table(data@meta.data[, c("leiden_res_0.5")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+(p2 + p1)  +
+  plot_layout(heights = c(4, 10)) & theme(text = element_text(size = 20))
+```
+
+# Annotation
+
+Old annotation
+
+```{r}
+DimPlot(
+  data, 
+  group.by = "auto_annot",
+  cols = as.vector(pals::polychrome()),
+  pt.size = 1,
+  shuffle = TRUE,
+  reduction = "umap_scvi",
+)
+```
+
+```{r annotation, eval = FALSE}
+data$leiden_res_0.5 <- as.character(data$leiden_res_0.5)
+new.cluster.ids <- c("CD4", "CD4", "CD8", "B cells", "Monocytes", "Macrophages", "CD8", "CD4", "NK", "CD4", "DC", "Monocytes", "Plasma cells", "B cells", "DC", "DC")
+# assign annotation to i_annot
+data$barcode <- rownames(data@meta.data)
+df_meta <- data@meta.data[, c("barcode", "leiden_res_0.5")]
+df_annot <- data.frame(
+  "leiden_res_0.5" = as.character(c(0:15)),
+  "i_annot" = new.cluster.ids
+)
+df_meta <- merge(df_meta, df_annot, all.x = TRUE)
+rownames(df_meta) <- df_meta$barcode
+data <- AddMetaData(data, metadata = df_meta[,c("barcode", "i_annot")])
+data <- subset(data, i_annot %in% c("doublets", "bad quality", "RBC", "bad"), invert = TRUE)
+data$i_annot <- as.character(data$i_annot)
+```
+
+```{r annotation 2, eval = FALSE}
+data$leiden_res_0.5 <- as.character(data$leiden_res_0.5)
+new.cluster.ids <- c("T cells", "T cells", "T cells", "B cells", "Myeloid", "Myeloid", "T cells", "T cells", "T cells", "T cells", "Myeloid", "Myeloid", "B cells", "B cells", "Myeloid", "Myeloid")
+# assign annoT cellsaT cellsion T cellso i_annoT cells_2
+data$barcode <- rownames(data@meta.data)
+df_meta <- data@meta.data[, c("barcode", "leiden_res_0.5")]
+df_annot <- data.frame(
+  "leiden_res_0.5" = as.character(c(0:15)),
+  "i_annot_2" = new.cluster.ids
+)
+df_meta <- merge(df_meta, df_annot, all.x = TRUE)
+rownames(df_meta) <- df_meta$barcode
+data <- AddMetaData(data, metadata = df_meta[,c("barcode", "i_annot_2")])
+data <- subset(data, i_annot_2 %in% c("doublets", "bad quality", "RBC", "bad"), invert = TRUE)
+data$i_annot_2 <- as.character(data$i_annot_2)
+```
+
+```{r fig.width=9}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "i_annot_2",
+  cols = pal_annot,
+  label = TRUE
+  ) +
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "i_annot",
+  cols = rev(pal_annot),
+  label = TRUE
+  ) 
+```
+
+```{r}
+DimPlot(
+  data, 
+  group.by = "disease",
+  cols = pal_disease,
+  pt.size = 1,
+  shuffle = TRUE,
+  reduction = "umap_scvi",
+)
+```
+
+```{r fig.width=10, fig.height=10}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "i_annot",
+  cols = rev(pal_annot),
+  split.by = "disease",
+  ncol = 2
+  )
+```
+
+
+```{r fig.height=9}
+p1 <- table(data@meta.data[, c("i_annot_2", "disease")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=disease, y=Freq, x=i_annot_2)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Cluster", y = "Proportion", fill = "Disease") +
+  scale_fill_manual(values = pal_disease) +
+  RotatedAxis() 
+
+p2 <- table(data@meta.data[, c("i_annot_2")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+(p2 + p1)  +
+  plot_layout(heights = c(4, 10)) & theme(text = element_text(size = 20))
+```
+
+```{r fig.height=9}
+p1 <- table(data@meta.data[, c("i_annot", "disease")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=disease, y=Freq, x=i_annot)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Cluster", y = "Proportion", fill = "Disease") +
+  scale_fill_manual(values = pal_disease) +
+  RotatedAxis() 
+
+p2 <- table(data@meta.data[, c("i_annot")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+(p2 + p1)  +
+  plot_layout(heights = c(4, 10)) & theme(text = element_text(size = 20))
+```
+
+```{r fig.width=9, fig.height=9}
+t <- table(data@meta.data[, c("i_annot_2", "disease", "patient_sample")]) %>% 
+  as.data.frame() %>%
+  filter(Freq > 0) %>% 
+  mutate_if(is.factor,as.character) %>% 
+  arrange(disease)
+t$patient_sample <-  factor(t$patient_sample, levels = t[, c("patient_sample", "disease")] %>% unique() %>% pull(patient_sample))
+
+# bar at the top
+p1 <-  ggplot(t, aes(y=-1, fill=disease, x=patient_sample)) + 
+  geom_tile() + 
+  scale_fill_manual(values = pal_disease) + 
+  theme_void() +
+  labs(fill = "Disease")
+
+# actual barplot
+p2 <- ggplot(t, aes(fill=i_annot_2, y=Freq, x=patient_sample)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Patient", y = "Proportion", fill = "Cell type") +
+  scale_fill_manual(values = pal_annot
+  ) +
+  RotatedAxis()
+
+t2 <- table(data$patient_sample) %>% 
+  as.data.frame()
+t2$Var1 <-  factor(t2$Var1, levels = t[, c("patient_sample", "disease")] %>% unique() %>% pull(patient_sample))
+
+p3 <- ggplot(t2, aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(),
+        axis.title.x = element_blank())
+
+# patchwork
+(p3 +p1 + p2)  +
+  plot_layout(heights = c(4, 1, 10), guides="collect") &
+  theme(legend.justification = "left")
+```
+
+```{r fig.width=9, fig.height=9}
+t <- table(data@meta.data[, c("i_annot", "disease", "patient_sample")]) %>% 
+  as.data.frame() %>%
+  filter(Freq > 0) %>% 
+  mutate_if(is.factor,as.character) %>% 
+  arrange(disease)
+t$patient_sample <-  factor(t$patient_sample, levels = t[, c("patient_sample", "disease")] %>% unique() %>% pull(patient_sample))
+
+# bar at the top
+p1 <-  ggplot(t, aes(y=-1, fill=disease, x=patient_sample)) + 
+  geom_tile() + 
+  scale_fill_manual(values = pal_disease) + 
+  theme_void() +
+  labs(fill = "Disease")
+
+# actual barplot
+p2 <- ggplot(t, aes(fill=i_annot, y=Freq, x=patient_sample)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Patient", y = "Proportion", fill = "Cell type") +
+  scale_fill_manual(values = rev(pal_annot)
+  ) +
+  RotatedAxis()
+
+t2 <- table(data$patient_sample) %>% 
+  as.data.frame()
+t2$Var1 <-  factor(t2$Var1, levels = t[, c("patient_sample", "disease")] %>% unique() %>% pull(patient_sample))
+
+p3 <- ggplot(t2, aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(),
+        axis.title.x = element_blank())
+
+# patchwork
+(p3 +p1 + p2)  +
+  plot_layout(heights = c(4, 1, 10), guides="collect") &
+  theme(legend.justification = "left")
+```
+
+```{r find cell type markers, eval = FALSE}
+Idents(data) <- "i_annot"
+markers <- FindAllMarkers(
+  object = data,
+  only.pos = TRUE
+)
+
+# save file
+saveRDS(markers, glue("{out_dir}/markers/immune_annotation_markers.rds"))
+# write to excel file
+openxlsx::write.xlsx(split(markers, markers$cluster), 
+                     file = glue("{out_dir}/markers/immune_annotation_markers.xlsx"),
+                     overwrite = TRUE)
+```
+
+```{r save obj, eval = FALSE}
+saveRDS(data, glue("{data_dir}/Immune_cells_annotated.rds"))
+```
+
+***
+
+```{r eval = FALSE}
+# load B, T and Myeloid objects to filter out bad quality cells
+# myeloid cells
+myeloid <- readRDS(glue("{proj_dir}/output/integration/Myeloid cells/Myeloid_cells_annotated.rds"))@meta.data %>% select(barcode, m_annot)
+colnames(myeloid) <- c("barcode", "lv2_annot")
+
+# B cells
+b <- readRDS(glue("{proj_dir}/output/integration/B cells/B_cells_annotated.rds"))@meta.data %>% select(barcode, b_annot)
+colnames(b) <- c("barcode", "lv2_annot")
+b_names <- c("Switch memory","Malignant III","Memory ITGAX+","Naive","Naive activated","Malignant I", "Malignant II")
+b$lv2_annot[b$lv2_annot %in% b_names] <- paste0("B cell ", b$lv2_annot[b$lv2_annot %in% b_names])
+
+# T cells
+t <- readRDS(glue("{proj_dir}/output/integration/T cells/T_cells_annotated.rds"))@meta.data %>% select(barcode, t_annot)
+colnames(t) <- c("barcode", "lv2_annot")
+t$lv2_annot[t$lv2_annot %in% c("Naive", "Proliferative")] <- paste0("T cell ", t$lv2_annot[t$lv2_annot %in% c("Naive", "Proliferative")])
+
+meta_df <- rbind(myeloid, b, t)
+rownames(meta_df) <- meta_df$barcode
+data <- AddMetaData(data, meta_df)
+table(is.na(data$lv2_annot))
+
+data <- data[, !is.na(data@meta.data[, "lv2_annot"])]
+saveRDS(data, glue("{data_dir}/Immune_cells_annotated_filtered_lv2.rds"))
+```
+
+```{r fig.height=9, fig.width=10}
+DimPlot(
+  data, 
+  group.by = "lv2_annot",
+  cols = as.vector(pals::polychrome()),
+  pt.size = 1,
+  shuffle = TRUE,
+  reduction = "umap_scvi",
+) +
+  theme(text = element_text(size = 20)) +
+  guides(color=guide_legend(ncol = 1, override.aes = list(size = 5)))
+```

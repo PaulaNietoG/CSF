@@ -49,7 +49,7 @@ out_dir <- glue("{proj_dir}/output/integration/Glioblastoma") %T>%
 data <- readRDS(glue("{out_dir}/all_cells_signature_type.rds"))
 ```
 
-```{r}
+```{r results='markup'}
 print(table(data$patient))
 ```
 
@@ -175,7 +175,7 @@ dittoBarPlot(
   theme(text = element_text(size = 20))
 ```
 
-```{r fig.width=15}
+```{r fig.width=15, eval = FALSE}
 t <- table(data$CT_predicted_labels) %>% 
   as.data.frame() %>% 
   filter(Freq >= 5) %>% 
@@ -193,7 +193,7 @@ DimPlot(
   theme(text = element_text(size = 20), legend.text = element_text(size = 10))
 ```
 
-```{r fig.width=20}
+```{r fig.width=20, eval = FALSE}
 dittoBarPlot(
   subset(data, CT_predicted_labels %in% t), 
   var = "CT_predicted_labels",
@@ -246,8 +246,8 @@ openxlsx::write.xlsx(split(markers, markers$cluster),
 DimPlot(data, 
         group.by = "seurat_clusters",
         label = TRUE,
-        pt.size = 1.5,
-        label.size = 6,
+        pt.size = 1,
+        label.size = 5,
         cols = as.vector(pals::trubetskoy())
       ) + 
   NoLegend() +
@@ -258,13 +258,13 @@ DimPlot(data,
 DimPlot(data, 
         group.by = "seurat_clusters",
         split.by = "patient",
-        label = TRUE,
+        # label = TRUE,
         pt.size = 1.5,
-        label.size = 4,
-        ncol = 4,
+        # label.size = 4,
+        # ncol = 4,
         cols = as.vector(pals::trubetskoy())
         ) + 
-  NoLegend() +
+  # NoLegend() +
   theme(text = element_text(size = 20)) 
 ```
 
@@ -438,12 +438,10 @@ FeaturePlot(
 Idents(data) <- "normal"
 data <- CellSelector(plot = p1, object = data, ident = "tumor")
 data$type <- as.factor(as.character(Idents(data)))
-
-saveRDS(data, glue("{out_dir}/all_cells_signature_type.rds"))
 ```
 
 ```{r}
-DimPlot(data, group.by = "type", cols = c("grey", "#d6604d"), pt.size = 2)
+DimPlot(data, group.by = "type", cols = c("grey", "#d6604d"), pt.size = 2) + labs(caption = "5 tumor cells (P05)")
 ```
 
 ```{r eval = FALSE}
@@ -490,6 +488,55 @@ markers %>%
   filter(p_val_adj < 0.01) %>% 
   arrange(desc(avg_log2FC)) %>% 
   DT::datatable(rownames = FALSE)
+```
+
+***
+
+```{r fig.width=10}
+FeaturePlot(
+  data,
+  features = c("GFAP", "PTPRC"),
+  order = TRUE,
+  pt.size = 1.5,
+  cols = c("#ADD8E633", "#d6604d"),
+)
+```
+
+```{r}
+DotPlot(
+  data,
+  features = c("GFAP", "PTPRC"),
+  cols = c("#ADD8E633", "#d6604d")
+)
+```
+
+```{r}
+DotPlot(
+  data,
+  features = c("GFAP", "PTPRC"),
+  cols = c("#ADD8E633", "#d6604d"),
+  group.by = "seurat_clusters"
+)
+```
+
+# Ribosomal content
+
+```{r}
+data <- PercentageFeatureSet(data, "^RP", col.name = "percent_ribo")
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = "percent_ribo",
+  order = TRUE,
+  pt.size = 1.5,
+  cols = c("#ADD8E633", "#d6604d"),
+)
+```
+
+```{r eval = FALSE}
+saveRDS(data, glue("{out_dir}/all_cells_signature_type.rds"))
 ```
 
 

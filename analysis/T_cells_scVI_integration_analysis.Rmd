@@ -1,0 +1,581 @@
+---
+title: "T cells scVI integrated"
+author:
+- name: Paula Nieto
+  affiliation: 
+  - Centro Nacional de Análisis Genómico (CNAG)
+  email: paula.nieto@cnag.crg.eu
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+```{r surce-utils, include=FALSE}
+tryCatch({
+  source("/scratch/devel/pnieto/scripts/r_utils/utils.R")
+}, error = function(e) {
+  source("S:/scripts/r_utils/utils.R")
+})
+library(dittoSeq)
+```
+
+```{r set-params}
+root <- get_root_dir()
+proj_dir <- glue("{root}/CSF")
+data_dir <- glue("{proj_dir}/output/integration/T cells")
+out_dir <- data_dir
+```
+
+```{r create-output-folder}
+# create output folder if it doesn't exist yet
+if (!file.exists(out_dir)) {
+  dir.create(out_dir)
+}
+```
+
+```{r}
+data <- readRDS(glue("{data_dir}/T_cells_annotated.rds"))
+Idents(data) <- "leiden_res_1"
+```
+
+```{r}
+# set up color palettes
+pal_patients <- as.vector(pals::polychrome())
+pal_projects <-as.vector(pals::alphabet())
+pal_disease <-as.vector(pals::trubetskoy())
+pal_clusters <- c(ggsci::pal_d3("category20")(20), ggsci::pal_d3("category20b")(20))
+pal_gene_exp <- c("#ADD8E633", "#E46726")
+pal_annot <- as.vector(pals::glasbey())
+pal_clones <- colorRampPalette(rev(c("#0D0887FF", "#47039FFF", 
+              "#7301A8FF", "#9C179EFF", "#BD3786FF", "#D8576BFF",
+              "#ED7953FF","#FA9E3BFF", "#FDC926FF", "#F0F921FF")))(5)
+names(pal_clones) <- c("Hyperexpanded (50 < X <= 100)", 
+                           "Large (20 < X <= 50)", 
+                            "Medium (5 < X <= 20)", 
+                            "Small (1 < X <= 5)", 
+                            "Single (0 < X <= 1)")
+```
+
+# Integration and Clustering
+
+```{r load and process data, eval = FALSE}
+data <- readRDS(glue("{data_dir}/T_cells_merged.rds"))
+
+data <- data %>%
+  NormalizeData() %>% 
+  FindVariableFeatures(nfeatures = 2000) %>%
+  ScaleData(verbose = FALSE) %>%
+  RunPCA(verbose = FALSE) %>%
+  RunUMAP(dims = 1:20, verbose = FALSE) %>% 
+  RunUMAP(dims = 1:20, verbose = FALSE, reduction.key = "UMAP_scVI_", reduction.name = "umap_scvi")
+
+# fix mistaken patient
+data$patient[data$library == 3885] <- "P12"
+data$patient_sample <- paste(data$patient, data$sample, sep = "_")
+Idents(data) <- "leiden_res_1"
+```
+
+```{r recode patient, eval = FALSE}
+data$disease <- "none"
+data$disease[data$patient %in% c("P01", "P06", "P10", "P11", "P15")] <- "Lymphoma"
+data$disease[data$patient %in% c("P02", "P05")] <- "Glioblastoma"
+data$disease[data$patient %in% c("P03", "P08", "P09", "P12", "P16")] <- "Brain met"
+data$disease[data$patient %in% c("P04", "P07", "P13", "P14")] <- "Inflammatory"
+```
+
+```{r scVI metadata and UMAP coordinates, eval = FALSE}
+# Read the CSV file with the clusters from scVI
+clusters <- read.csv(glue("{data_dir}/T_cells_scVI_clusters.csv"))
+rownames(clusters) <- clusters$X
+clusters$X <- NULL
+# add clusters metadata to seu obj
+data <- AddMetaData(data, metadata = clusters)
+
+umap <- read.csv(glue("{data_dir}/T_cells_scVI_UMAP.csv"))
+rownames(umap) <- umap$X
+umap$X <- NULL
+colnames(umap) <- c("UMAPscVI_1", "UMAPscVI_2")
+data@reductions$umap_scvi@cell.embeddings <- as.matrix(umap)
+```
+
+Uncorrected UMAP
+
+```{r fig.width=10}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap", 
+  group.by = "patient_sample",
+  shuffle = TRUE,
+  cols = pal_patients
+  ) +
+  DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap", 
+  group.by = "project",
+  shuffle = TRUE,
+  cols = pal_projects
+  )
+```
+
+scVI corrected UMAP
+
+```{r fig.width=10}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "patient_sample",
+  shuffle = TRUE,
+  cols = pal_patients
+  ) +
+  DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "project",
+  shuffle = TRUE,
+  cols = pal_projects
+  )
+```
+
+```{r}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "leiden_res_1",
+  cols = pal_clusters,
+  label = TRUE
+  )
+```
+
+```{r fig.width=9}
+FeaturePlot(
+  data,
+  features = c("CD4", "CD8B"),
+  order = TRUE,
+  pt.size = 1,
+  ncol = 2,
+  reduction = "umap_scvi",
+  label = TRUE,
+  cols = pal_gene_exp,
+)
+```
+
+```{r}
+VlnPlot(
+  data,
+  features = c("CD4", "CD8B"),
+  cols = ggsci::pal_d3("category20")(20),
+  group.by = "leiden_res_1",
+  pt.size = 0
+  )
+```
+
+```{r}
+FeaturePlot(
+  data,
+  features = c("CD3E", "CD3D", "CD68", "MS4A1"),
+  order = TRUE,
+  pt.size = 1,
+  ncol = 2,
+  reduction = "umap_scvi",
+  label = TRUE,
+  cols = pal_gene_exp,
+)
+```
+
+```{r}
+VlnPlot(
+  data,
+  features = c("CD3E", "CD3D", "MS4A1", "CD79A", "CD68"),
+  group.by = "leiden_res_1",
+  cols = pal_clusters,
+  pt.size = 0
+)
+```
+
+# Annotation
+
+Old annotation
+
+```{r}
+DimPlot(
+  data, 
+  group.by = "auto_annot",
+  cols = as.vector(pals::polychrome()),
+  pt.size = 1,
+  shuffle = TRUE,
+  reduction = "umap_scvi",
+)
+```
+
+```{r find cluster markers, eval = FALSE}
+Idents(data) <- "leiden_res_1"
+markers <- FindAllMarkers(
+  object = data,
+  only.pos = TRUE
+)
+
+# save file
+saveRDS(markers, glue("{out_dir}/markers/marker_genes_res1_scVI.rds"))
+# write to excel file
+openxlsx::write.xlsx(split(markers, markers$cluster), 
+                     file = glue("{out_dir}/markers/marker_genes_res1_scVI.xlsx"),
+                     overwrite = TRUE)
+```
+
+```{r annotation, eval = FALSE}
+data$leiden_res_1 <- as.character(data$leiden_res_1)
+new.cluster.ids <- c("CD8 pre-exhausted", "CD4 T reg", "Naive", "bad", "Naive", "CD4 CM activated",  "CD4 CM activated",  "CD4 CM activated", "CD4 Ifn response", "NK", "CD8 Exhausted", "CD4 helper", "CD8 cytotoxic", "bad", "doublets", "CD8 EM", "Proliferative")
+# assign annotation to t_annot
+data$barcode <- rownames(data@meta.data)
+df_meta <- data@meta.data[, c("barcode", "leiden_res_1")]
+df_annot <- data.frame(
+  "leiden_res_1" = as.character(c(0:16)),
+  "t_annot" = new.cluster.ids
+)
+df_meta <- merge(df_meta, df_annot, all.x = TRUE)
+rownames(df_meta) <- df_meta$barcode
+data <- AddMetaData(data, metadata = df_meta[,c("barcode", "t_annot")])
+data <- subset(data, t_annot %in% c("doublets", "bad quality", "RBC", "bad"), invert = TRUE)
+data$t_annot <- as.character(data$t_annot)
+```
+
+```{r}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "t_annot",
+  cols = pal_annot,
+  label = TRUE
+  )
+```
+
+```{r}
+DimPlot(
+  data, 
+  group.by = "disease",
+  cols = pal_disease,
+  pt.size = 1,
+  shuffle = TRUE,
+  reduction = "umap_scvi",
+)
+```
+
+```{r fig.width=12, fig.height=12}
+DimPlot(
+  data, 
+  split.by = "disease",
+  group.by = "t_annot",
+  cols = pal_annot,
+  pt.size = 1,
+  shuffle = TRUE,
+  reduction = "umap_scvi",
+  ncol = 2
+)
+```
+
+```{r fig.height=9}
+p1 <- table(data@meta.data[, c("t_annot")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+p2 <- table(data@meta.data[, c("t_annot", "disease")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=disease, y=Freq, x=t_annot)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_minimal_hgrid() +
+  labs(x = "Cluster", y = "Proportion", fill = "Disease") +
+  scale_fill_manual(values = pal_disease) +
+  RotatedAxis()
+
+(p1 + p2) +
+  plot_layout(heights = c(5, 10), guides="collect") &
+  theme(legend.justification = "left")
+```
+
+```{r fig.width=10, fig.height=9}
+t <- table(data@meta.data[, c("t_annot", "disease", "patient_sample")]) %>% 
+  as.data.frame() %>%
+  filter(Freq > 0) %>% 
+  mutate_if(is.factor,as.character) %>% 
+  arrange(disease)
+t$patient_sample <-  factor(t$patient_sample,levels = t[, c("patient_sample", "disease")] %>% unique() %>% pull(patient_sample))
+
+# bar at the top
+p1 <-  ggplot(t, aes(y=-1, fill=disease, x=patient_sample)) + 
+  geom_tile() + 
+  scale_fill_manual(values = pal_disease) + 
+  theme_void() +
+  labs(fill = "Disease")
+
+# actual barplot
+p2 <- ggplot(t, aes(fill=t_annot, y=Freq, x=patient_sample)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "patient_sample", y = "Proportion", fill = "Cell type") +
+  scale_fill_manual(values = pal_annot) +
+  RotatedAxis()
+
+t2 <- table(data@meta.data[, c("patient_sample")]) %>% 
+  as.data.frame()
+t2$Var1 <-  factor(t2$Var1,levels = t[, c("patient_sample", "disease")] %>% unique() %>% pull(patient_sample))
+
+p3 <- ggplot(t2, aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+# patchwork
+(p3 + p1 + p2) +
+  plot_layout(heights = c(5, 0.5, 10), guides="collect") &
+  theme(legend.justification = "left")
+```
+
+```{r find cell type markers, eval = FALSE}
+Idents(data) <- "t_annot"
+markers <- FindAllMarkers(
+  object = data,
+  only.pos = TRUE
+)
+
+# save file
+saveRDS(markers, glue("{out_dir}/markers/t_annotation_markers.rds"))
+# write to excel file
+openxlsx::write.xlsx(split(markers, markers$cluster), 
+                     file = glue("{out_dir}/markers/t_annotation_markers.xlsx"),
+                     overwrite = TRUE)
+```
+
+```{r save obj, eval = FALSE}
+saveRDS(data, glue("{data_dir}/T_cells_annotated.rds"))
+```
+
+***
+
+```{r}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "t_annot",
+  cols = pal_annot
+  )
+```
+
+# TCR
+
+Present clones arranged from largest to smallest.
+
+```{r results='markup'}
+data@meta.data[, c("sample", "Frequency", "cloneType", "CTaa")] %>% 
+  unique() %>% 
+  filter(!is.na(cloneType)) %>% 
+  arrange(desc(Frequency)) %>% 
+  DT::datatable(rownames = FALSE)
+```
+
+```{r fig.width=9}
+slot(data, "meta.data")$cloneType <- factor(slot(data, "meta.data")$cloneType, 
+                levels = c("Hyperexpanded (50 < X <= 100)", 
+                           "Large (20 < X <= 50)", 
+                            "Medium (5 < X <= 20)", 
+                            "Small (1 < X <= 5)", 
+                            "Single (0 < X <= 1)", NA))
+```
+
+```{r fig.width=9}
+DimPlot(
+  data, 
+  group.by = "cloneType", 
+  pt.size = 1, 
+  reduction = "umap_scvi"
+  ) +
+  scale_color_manual(values = pal_clones, na.value="grey") + 
+  theme(plot.title = element_blank(),
+        text = element_text(size = 18))
+```
+
+Number of clones (not cells!) per type and sample
+
+```{r fig.width=10, fig.height=12}
+df <- data@meta.data[, c("patient_sample", "disease", "cloneType", "CTaa")] %>% 
+  filter(!is.na(CTaa))
+rownames(df) <- NULL
+df <- unique(df)
+df$patient_sample <-  factor(df$patient_sample, levels = df[, c("patient_sample", "disease")] %>% unique() %>% arrange(disease) %>%  pull(patient_sample))
+
+# barplot
+bp_data <- table(df[, c("patient_sample", "cloneType")]) %>% 
+  as.data.frame()
+bp_data$patient_sample <-  factor(bp_data$patient_sample, levels = df[, c("patient_sample", "disease")] %>% unique() %>% arrange(disease)%>% pull(patient_sample))
+
+p1 <- ggplot(bp_data, aes(fill=cloneType, y=Freq, x=patient_sample)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Patient/Sample", y = "Proportion", fill = "Cell type") +
+  scale_fill_manual(values = pal_clones) +
+  RotatedAxis()
+
+# bar disease
+p2 <- ggplot(df, aes(y=-1, fill=disease, x=patient_sample)) + 
+  geom_tile() + 
+  scale_fill_manual(values = pal_disease) + 
+  theme_void() +
+  labs(fill = "Disease")
+
+# number of clones
+hist_data <- table(df$patient_sample)%>% 
+  as.data.frame() 
+hist_data$Var1 <-  factor(hist_data$Var1, levels = df[, c("patient_sample", "disease")] %>% unique() %>% arrange(disease)%>% pull(patient_sample))
+
+p3 <- ggplot(hist_data, aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of clones") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+# patchwork
+(p3 + p2 + p1) +
+  plot_layout(heights = c(5, 0.5, 10), guides="collect") &
+  theme(legend.justification = "left")
+```
+
+Percentage of T cells that have a TCR (TRUE) and don't have one (FALSE).
+
+Note that here we are including NKs in the T cell compartment, which are not expected to have TCRs.
+
+```{r results='markup'}
+table(!is.na(data$cloneType))
+round((table(!is.na(data$cloneType))/dim(data)[2])*100,2)
+```
+
+Clone size by cell type & disease
+
+```{r fig.width=9, fig.height = 9}
+dittoBarPlot(
+  subset(data, t_annot %in% c("NK"), invert = TRUE),
+  var = "cloneType",
+  group.by = "t_annot",
+  split.by = "disease",
+  scale = "percent"
+) +
+  coord_polar() +
+  scale_fill_manual(
+    values = pal_clones,
+    na.value= alpha("grey", 0.3)
+    ) +
+  theme(plot.title = element_blank(),
+        text = element_text(size = 12),
+        strip.text = element_text(size = 20)
+        ) +
+  NoLegend()
+```
+
+Top 10 clones by sample
+
+```{r}
+top_clones <- data@meta.data[, c("patient_sample", "disease", "Frequency", "CTaa")] %>% 
+  unique() %>% 
+  # filter(Frequency > 10) %>% 
+  arrange(desc(Frequency))
+rownames(top_clones) <- NULL
+
+
+top_clones <- top_clones %>%
+  group_by(patient_sample) %>% # Group by patient_sample and add a row number to each group
+  mutate(row_num = row_number()) %>% 
+  filter(row_num <= 10) %>% # Filter for the top 10 clones in each patient_sample group
+  mutate(top = paste0("top_", row_num)) # Create the "top" column with the labels
+
+# now add this to metadata of the Seurat object
+data$barcode <- rownames(data@meta.data)
+df_meta <- data@meta.data[, c("barcode", "patient_sample", "CTaa")]
+df_meta <- merge(df_meta, top_clones[, c("CTaa", "patient_sample", "top")], all.x = TRUE)
+rownames(df_meta) <- df_meta$barcode
+data <- AddMetaData(data, metadata = df_meta[,c("barcode", "top")])
+```
+
+```{r fig.height=7}
+# Reorder the levels of the "top" column
+data$top <- factor(data$top, levels = paste0("top_", 1:10))
+pat_ord <- data@meta.data[, c("patient_sample", "disease")] %>% arrange("disease") %>% unique() %>% pull(patient_sample)
+
+# Define a 10-color palette in shades of red and blue
+red_blue_palette <- c("#FF0000", "#FF5733", "#FFAD29", "#FFDC00", "#3384FF", "#4D88FF", "#669DFF", "#7EB2FF", "#99C7FF", "#B3DBFF")
+
+# barplot
+bp_data <- table(data@meta.data[, c("patient_sample", "disease", "top")]) %>% 
+  as.data.frame() %>% 
+  filter(Freq > 0)
+bp_data$patient_sample <-  factor(bp_data$patient_sample, levels = pat_ord)
+
+ggplot(bp_data, aes(fill=top, y=Freq, x=patient_sample)) +
+  geom_bar(stat="identity") +
+  facet_wrap(.~disease, scales = "free") +
+  theme_classic() +
+  labs(x = "Patient/sample", y = "Cells", fill = "Top clones") +
+  scale_fill_manual(values = red_blue_palette) +
+  theme(strip.text = element_text(size = 16)) +
+  RotatedAxis()
+```
+
+```{r fig.height=8, fig.width=9}
+#ggraph needs to be loaded due to issues with ggplot
+library(ggraph)
+
+#No Identity filter
+plots <- purrr::map(unique(data$disease), function(x){
+  clonalNetwork(subset(data, disease == x), 
+              reduction = "umap_scvi", 
+              identity = "t_annot",
+              filter.graph = TRUE,
+              cloneCall = "aa"
+              ) +
+    scale_color_manual(values = alpha(pal_annot, .1)) +
+    labs(title = x)
+})
+wrap_plots(plots, ncol = 2)
+```
+
+***
+
+```{r}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "t_annot",
+  cols = pal_annot
+  )
+```
+
+<a href="#top">Back to top</a>
+
+***
+
+```{r}
+sessionInfo()
+```
+

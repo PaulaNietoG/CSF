@@ -1,0 +1,111 @@
+---
+title: "LISI score"
+output:
+  html_document:
+    self_contained: yes
+    mode: selfcontained
+    toc: true # table of content true
+    number_sections: true  ## if you want number sections at each table header
+    theme: united  # many options for theme, this one is my favorite.
+    highlight: tango  # specifies the syntax highlighting style
+editor_options:
+  chunk_output_type: console
+params:
+  cell: "T cells"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  # results = "hide",
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE
+)
+```
+
+```{r include=FALSE}
+library(tidyverse)
+library(Seurat)
+library(patchwork)
+library(magrittr)
+library(glue)
+library(lisi)
+```
+
+```{r}
+# cell type
+cell_type <- params$cell
+
+## set working directory
+
+# set path depending if on cluster or local
+root_dir <- ifelse(
+  grepl(dirname(getwd()), pattern = "/scratch/"),
+  "/scratch/devel/pnieto/projects", #true statement
+  "S:/projects" # false statement
+)
+# name of the project directory
+proj_dir <- glue::glue("{root_dir}/CSF")
+
+# output path to save data from this step (create dir if it doesn't exist)
+data_path <- glue::glue("{proj_dir}/output/integration/{cell_type}") 
+
+# get date string
+date_str <- format(Sys.Date(), "%d_%m_%Y")
+```
+
+```{r}
+cell_name <- str_replace(cell_type, pattern = " ", "_")
+# read annotated and processed breast data
+data <- readRDS(glue::glue("{data_path}/{cell_name}_annotated.rds"))
+```
+
+# LISI score
+
+```{r}
+# select metadata cols to compute lisi score on
+sel_cols <- c("disease","project", "patient", "sample", "annot", "auto_annot", "CT_predicted_labels")
+# uncorrected UMAP
+original <- Embeddings(data, "umap")
+metadata_df <- data@meta.data[, sel_cols]
+lisi_original <- compute_lisi(
+  original,
+  metadata_df,
+  sel_cols
+)
+colnames(lisi_original) <- paste0("lisi_", sel_cols, "_og")
+## add to obj metadata
+data <- AddMetaData(data, metadata = lisi_original)
+
+# scVI corrected UMAP
+corrected <- Embeddings(data, "umap_scvi")
+lisi_corrected <- compute_lisi(
+  corrected,
+  metadata_df,
+  sel_cols
+)
+colnames(lisi_corrected) <- paste0("lisi_", sel_cols, "_scvi")
+
+## add to obj metadata
+data <- AddMetaData(data, metadata = lisi_corrected)
+```
+
+```{r fig.width=9}
+purrr::map(sel_cols, function(c){
+  
+  data@meta.data %>%
+    ggplot() +
+    geom_boxplot(aes(x = "Uncorrected", y = get(glue("lisi_{c}_og"))), fill = "#f9965b", alpha = 0.5) +
+    geom_boxplot(aes(x = "scVI-corrected", y = get(glue("lisi_{c}_scvi"))), fill = "#db29a3", alpha = 0.3) +
+    labs(y = "LISI score", title = str_to_title(c), x = "") +
+    theme_classic() +
+    theme(text = element_text(size = 20), plot.title = element_text(hjust = 0.5))
+  
+})
+```
+
+```{r}
+saveRDS(data, glue::glue("{data_path}/{cell_name}_annotated_lisi.rds"))
+```
+

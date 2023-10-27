@@ -8,8 +8,8 @@ author:
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: html_document
 params:
-  subproject: "CSF_02"
-  patient: "7974"
+  subproject: "CSF_06"
+  patient: "8022"
 subtitle: "`r glue::glue('{params$subproject} - {params$patient}')`"
 ---
 

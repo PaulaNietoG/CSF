@@ -30,3 +30,6 @@ knitr::opts_chunk$set(echo = TRUE)
 # By linage
 
 * [B cells](Bcell_integration.html)
+* [T cells](Tcell_integration.html)
+* [Myeloid](Myeloid_integration.html)
+* [All Immune](Immunecell_integration.html)

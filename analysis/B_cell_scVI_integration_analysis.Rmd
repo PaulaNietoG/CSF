@@ -46,8 +46,29 @@ if (!file.exists(out_dir)) {
 ```
 
 ```{r}
-data <- readRDS(glue("{data_dir}/B_cells_integrated_K_score.rds"))
+data <- readRDS(glue("{data_dir}/B_cells_annotated.rds"))
+Idents(data) <- "leiden_res_1"
 ```
+
+```{r}
+# set up color palettes
+pal_patients <- as.vector(pals::polychrome())
+pal_projects <-as.vector(pals::alphabet())
+pal_disease <-as.vector(pals::trubetskoy())
+pal_clusters <- c(ggsci::pal_d3("category20")(20), ggsci::pal_d3("category20b")(20))
+pal_gene_exp <- c("#ADD8E633", "#E46726")
+pal_annot <- as.vector(pals::glasbey())
+pal_clones <- colorRampPalette(rev(c("#0D0887FF", "#47039FFF", 
+              "#7301A8FF", "#9C179EFF", "#BD3786FF", "#D8576BFF",
+              "#ED7953FF","#FA9E3BFF", "#FDC926FF", "#F0F921FF")))(5)
+names(pal_clones) <- c("Hyperexpanded (50 < X <= 100)", 
+                           "Large (20 < X <= 50)", 
+                            "Medium (5 < X <= 20)", 
+                            "Small (1 < X <= 5)", 
+                            "Single (0 < X <= 1)")
+```
+
+# Integration and Clustering
 
 ```{r load and process data, eval = FALSE}
 data <- readRDS(glue("{data_dir}/B_cells_merged.rds"))
@@ -57,7 +78,21 @@ data <- data %>%
   FindVariableFeatures(nfeatures = 2000) %>%
   ScaleData(verbose = FALSE) %>%
   RunPCA(verbose = FALSE) %>%
+  RunUMAP(dims = 1:20, verbose = FALSE) %>% 
   RunUMAP(dims = 1:20, verbose = FALSE, reduction.key = "UMAP_scVI_", reduction.name = "umap_scvi")
+
+# fix mistaken patient
+data$patient[data$library == 3885] <- "P12"
+data$patient_sample <- paste(data$patient, data$sample, sep = "_")
+Idents(data) <- "leiden_res_1"
+```
+
+```{r recode patient, eval = FALSE}
+data$disease <- "none"
+data$disease[data$patient %in% c("P01", "P06", "P10", "P11", "P15")] <- "Lymphoma"
+data$disease[data$patient %in% c("P02", "P05")] <- "Glioblastoma"
+data$disease[data$patient %in% c("P03", "P08", "P09", "P12", "P16")] <- "Brain met"
+data$disease[data$patient %in% c("P04", "P07", "P13", "P14")] <- "Inflammatory"
 ```
 
 ```{r scVI metadata and UMAP coordinates, eval = FALSE}
@@ -75,15 +110,120 @@ colnames(umap) <- c("UMAPscVI_1", "UMAPscVI_2")
 data@reductions$umap_scvi@cell.embeddings <- as.matrix(umap)
 ```
 
+Uncorrected UMAP
+
+```{r fig.width=10}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap", 
+  group.by = "patient_sample",
+  shuffle = TRUE,
+  cols = pal_patients
+  ) +
+  DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap", 
+  group.by = "project",
+  shuffle = TRUE,
+  cols = pal_projects
+  )
+```
+
+scVI corrected UMAP
+
+```{r fig.width=10}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "patient_sample",
+  shuffle = TRUE,
+  cols = pal_patients
+  ) +
+  DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "project",
+  shuffle = TRUE,
+  cols = pal_projects
+  )
+```
+
 ```{r}
 DimPlot(
   data, 
   pt.size = 1,
   reduction = "umap_scvi", 
   group.by = "leiden_res_1",
-  cols = ggsci::pal_d3("category20")(13),
+  cols = pal_clusters,
   label = TRUE
   )
+```
+
+
+```{r fig.height=9}
+p1 <- table(data@meta.data[, c("leiden_res_1", "disease")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=disease, y=Freq, x=leiden_res_1)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Cluster", y = "Proportion", fill = "Disease") +
+  scale_fill_manual(values = pal_clusters) +
+  RotatedAxis() 
+
+p2 <- table(data@meta.data[, c("leiden_res_1")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+(p2 + p1)  +
+  plot_layout(heights = c(4, 10)) & theme(text = element_text(size = 20))
+```
+
+```{r fig.height=9}
+p1 <- table(data@meta.data[, c("leiden_res_1", "patient_sample")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=patient_sample, y=Freq, x=leiden_res_1)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Cluster", y = "Proportion", fill = "patient_sample") +
+  scale_fill_manual(values = pal_patients) +
+  RotatedAxis() 
+
+p2 <- table(data@meta.data[, c("leiden_res_1")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+(p2 + p1)  +
+  plot_layout(heights = c(4, 10)) & theme(text = element_text(size = 20))
+```
+
+```{r fig.height=10, fig.width=10}
+FeaturePlot(
+  data,
+  features = c("IGHM", "IGHD", "CD27", "SELL", "ITGAX", "CD24", "CCR7"),
+  # order = TRUE,
+  pt.size = 1,
+  cols = c("#ADD8E633", "darkgreen"),
+)
+```
+
+```{r fig.height=10, fig.width=10}
+VlnPlot(
+  data,
+  features = c("IGHM", "IGHD", "CD27", "SELL", "ITGAX", "CD24", "CCR7"),
+  group.by = "leiden_res_1"
+)
 ```
 
 # Kappa or Lambda clones
@@ -115,6 +255,7 @@ FeaturePlot(
   features = "IGKC_score",
   # order = TRUE,
   pt.size = 1,
+  reduction = "umap_scvi", 
   cols = c("#ADD8E633", "orange4"),
 )
 ```
@@ -148,6 +289,7 @@ DimPlot(
   data,
   group.by = "IGKC_score_bin",
   pt.size = 1,
+  reduction = "umap_scvi", 
   cols = k_l_col
 )
 ```
@@ -162,16 +304,17 @@ p1 <- table(data@meta.data[, c("leiden_res_1", "IGKC_score_bin")]) %>%
   facet_grid(.~ leiden_res_1) +
   scale_fill_manual(values = k_l_col) +
   theme_void() + 
-  theme(panel.spacing = unit(0.2, "lines"))
+  theme(panel.spacing = unit(0.2, "lines")) +
+  labs(fill = "IGKC score")
 
 # actual barplot
-p2 <- table(data@meta.data[, c("leiden_res_1", "patient")]) %>% 
+p2 <- table(data@meta.data[, c("leiden_res_1", "patient_sample")]) %>% 
   as.data.frame() %>% 
-  ggplot(aes(fill=patient, y=Freq, x=leiden_res_1)) +
+  ggplot(aes(fill=patient_sample, y=Freq, x=leiden_res_1)) +
   geom_bar(position="fill", stat="identity") +
   theme_classic() +
   labs(x = "Cluster", y = "Proportion", fill = "Patient") +
-  ggsci::scale_fill_d3("category20")
+  scale_fill_manual(values = pal_patients)
 
 # patchwork
 (p1 + p2)  +
@@ -180,32 +323,198 @@ p2 <- table(data@meta.data[, c("leiden_res_1", "patient")]) %>%
   guides(fill=guide_legend(ncol=2))
 ```
 
-```{r recode patient, eval = FALSE}
-data$disease <- "none"
-data$disease[data$patient %in% c("P01", "P06", "P10", "P11", "P15")] <- "Lymphoma"
-data$disease[data$patient %in% c("P02", "P05")] <- "Glioblastoma"
-data$disease[data$patient %in% c("P03", "P08", "P09", "P12", "P16")] <- "Brain met"
-data$disease[data$patient %in% c("P04", "P07", "P13", "P14")] <- "Inflammatory"
+```{r find cell type markers, eval = FALSE}
+Idents(data) <- "leiden_res_1"
+markers <- FindAllMarkers(
+  object = data,
+  only.pos = TRUE
+)
+
+# save file
+saveRDS(markers, glue("{out_dir}/markers/marker_genes_res1_scVI.rds"))
+# write to excel file
+openxlsx::write.xlsx(split(markers, markers$cluster), 
+                     file = glue("{out_dir}/markers/marker_genes_res1_scVI.xlsx"),
+                     overwrite = TRUE)
+```
+
+# Annotation
+
+Old annotation
+
+```{r}
+DimPlot(
+  data, 
+  group.by = "auto_annot",
+  cols = as.vector(pals::polychrome()),
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  shuffle = TRUE
+)
+```
+
+```{r annotation, eval = FALSE}
+data$leiden_res_1 <- as.character(data$leiden_res_1)
+new.cluster.ids <- c("Switch memory", "Malignant II", "Naive activated", "Malignant III", "Naive", "bad", "Malignant III", "Plasma", "doublets", "Malignant III", "Malignant I", "Memory ITGAX+", "Malignant plasma")
+# assign annotation to b_annot
+data$barcode <- rownames(data@meta.data)
+df_meta <- data@meta.data[, c("barcode", "leiden_res_1")]
+df_annot <- data.frame(
+  "leiden_res_1" = c(0:12),
+  "b_annot" = new.cluster.ids
+)
+df_meta <- merge(df_meta, df_annot, all.x = TRUE)
+rownames(df_meta) <- df_meta$barcode
+data <- AddMetaData(data, metadata = df_meta[,c("barcode", "b_annot")])
+data <- subset(data, b_annot %in% c("doublets", "bad quality", "RBC", "bad"), invert = TRUE)
+data$b_annot <- as.character(data$b_annot)
+```
+
+```{r fig.width=9}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "b_annot",
+  cols = pal_annot,
+  label = TRUE
+  )
+```
+
+```{r find cluster markers, eval = FALSE}
+Idents(data) <- "b_annot"
+markers <- FindAllMarkers(
+  object = data,
+  only.pos = TRUE
+)
+
+# save file
+saveRDS(markers, glue("{out_dir}/markers/b_annotation_markers.rds"))
+# write to excel file
+openxlsx::write.xlsx(split(markers, markers$cluster), 
+                     file = glue("{out_dir}/markers/b_annotation_markers.xlsx"),
+                     overwrite = TRUE)
+```
+
+```{r}
+DimPlot(
+  data, 
+  group.by = "patient_sample",
+  cols = pal_patients,
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  shuffle = TRUE
+)
 ```
 
 ```{r}
 DimPlot(
   data, 
   group.by = "disease",
-  cols = as.vector(pals::trubetskoy()),
+  cols = pal_disease,
+  reduction = "umap_scvi", 
   pt.size = 1,
   shuffle = TRUE
 )
 ```
 
 ```{r}
-p2 <- table(data@meta.data[, c("leiden_res_1", "disease")]) %>% 
+DimPlot(
+  data, 
+  group.by = "b_annot",
+  cols = pal_annot,
+  split.by = "disease",
+  ncol = 2,
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  shuffle = TRUE
+)
+```
+
+```{r fig.height=9}
+p1 <- table(data@meta.data[, c("b_annot")]) %>% 
   as.data.frame() %>% 
-  ggplot(aes(fill=disease, y=Freq, x=leiden_res_1)) +
+  ggplot(aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+p2 <- table(data@meta.data[, c("b_annot", "disease")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=disease, y=Freq, x=b_annot)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_minimal_hgrid() +
+  labs(x = "Cluster", y = "Proportion", fill = "Disease") +
+  scale_fill_manual(values = pal_disease) +
+  RotatedAxis()
+
+(p1 + p2) +
+  plot_layout(heights = c(5, 10), guides="collect") &
+  theme(legend.justification = "left")
+```
+
+```{r fig.width=10, fig.height=9}
+t <- table(data@meta.data[, c("b_annot", "disease", "patient_sample")]) %>% 
+  as.data.frame() %>%
+  filter(Freq > 0) %>% 
+  mutate_if(is.factor,as.character) %>% 
+  arrange(disease)
+t$patient_sample <-  factor(t$patient_sample,levels = t[, c("patient_sample", "disease")] %>% unique() %>% pull(patient_sample))
+
+# bar at the top
+p1 <-  ggplot(t, aes(y=-1, fill=disease, x=patient_sample)) + 
+  geom_tile() + 
+  scale_fill_manual(values = pal_disease) + 
+  theme_void() +
+  labs(fill = "Disease")
+
+# actual barplot
+p2 <- ggplot(t, aes(fill=b_annot, y=Freq, x=patient_sample)) +
   geom_bar(position="fill", stat="identity") +
   theme_classic() +
-  labs(x = "Cluster", y = "Proportion", fill = "Patient") +
-  scale_fill_manual(values = as.vector(pals::trubetskoy()))
+  labs(x = "patient_sample", y = "Proportion", fill = "Cell type") +
+  scale_fill_manual(values = pal_annot) +
+  RotatedAxis()
+
+t2 <- table(data@meta.data[, c("patient_sample")]) %>% 
+  as.data.frame()
+t2$Var1 <-  factor(t2$Var1,levels = t[, c("patient_sample", "disease")] %>% unique() %>% pull(patient_sample))
+
+p3 <- ggplot(t2, aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of cells") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+# patchwork
+(p3 + p1 + p2) +
+  plot_layout(heights = c(5, 0.5, 10), guides="collect") &
+  theme(legend.justification = "left")
+```
+
+```{r}
+# piechart at the top
+p1 <- table(data@meta.data[, c("b_annot", "IGKC_score_bin")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(x="", y=Freq, fill=IGKC_score_bin)) +
+  geom_bar(width = 1, stat = "identity", position = "fill") +
+  coord_polar("y", start=0) + 
+  facet_grid(.~ b_annot) +
+  scale_fill_manual(values = k_l_col) +
+  theme_void() + 
+  theme(panel.spacing = unit(1.3, "lines")) +
+  theme(strip.text = element_blank()) +
+  labs(fill = "IGKC score")
+
+p2 <- table(data@meta.data[, c("b_annot", "disease")]) %>% 
+  as.data.frame() %>% 
+  ggplot(aes(fill=disease, y=Freq, x=b_annot)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Cluster", y = "Proportion", fill = "Disease") +
+  scale_fill_manual(values = pal_disease) +
+  RotatedAxis()
 
 # patchwork
 (p1 + p2)  +
@@ -214,6 +523,183 @@ p2 <- table(data@meta.data[, c("leiden_res_1", "disease")]) %>%
 ```
 
 ```{r save obj, eval = FALSE}
-saveRDS(data, glue("{data_dir}/B_cells_integrated_K_score.rds"))
+saveRDS(data, glue("{data_dir}/B_cells_annotated.rds"))
+```
+
+***
+
+```{r}
+DimPlot(
+  data, 
+  pt.size = 1,
+  reduction = "umap_scvi", 
+  group.by = "b_annot",
+  cols = pal_annot
+  )
+```
+
+# BCR
+
+Present clones arranged from largest to smallest.
+
+```{r results='markup'}
+data@meta.data[, c("sample", "Frequency", "cloneType", "CTaa")] %>% 
+  unique() %>% 
+  filter(!is.na(cloneType)) %>% 
+  arrange(desc(Frequency)) %>% 
+  DT::datatable(rownames = FALSE)
+```
+
+```{r fig.width=9}
+slot(data, "meta.data")$cloneType <- factor(slot(data, "meta.data")$cloneType, 
+                levels = c("Hyperexpanded (50 < X <= 100)", 
+                           "Large (20 < X <= 50)", 
+                            "Medium (5 < X <= 20)", 
+                            "Small (1 < X <= 5)", 
+                            "Single (0 < X <= 1)", NA))
+```
+
+```{r fig.width=9}
+DimPlot(
+  data, 
+  group.by = "cloneType", 
+  pt.size = 1, 
+  reduction = "umap_scvi"
+  ) +
+  scale_color_manual(values = pal_clones, na.value="grey") + 
+  theme(plot.title = element_blank(),
+        text = element_text(size = 18))
+```
+
+Number of clones (not cells!) per type and sample
+
+```{r fig.width=10, fig.height=12}
+df <- data@meta.data[, c("patient_sample", "disease", "cloneType", "CTaa")] %>% 
+  filter(!is.na(CTaa))
+rownames(df) <- NULL
+df <- unique(df)
+df$patient_sample <-  factor(df$patient_sample, levels = df[, c("patient_sample", "disease")] %>% unique() %>% arrange(disease) %>%  pull(patient_sample))
+
+# barplot
+bp_data <- table(df[, c("patient_sample", "cloneType")]) %>% 
+  as.data.frame()
+bp_data$patient_sample <-  factor(bp_data$patient_sample, levels = df[, c("patient_sample", "disease")] %>% unique() %>% arrange(disease)%>% pull(patient_sample))
+
+p1 <- ggplot(bp_data, aes(fill=cloneType, y=Freq, x=patient_sample)) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(x = "Patient/Sample", y = "Proportion", fill = "Cell type") +
+  scale_fill_manual(values = pal_clones) +
+  RotatedAxis()
+
+# bar disease
+p2 <- ggplot(df, aes(y=-1, fill=disease, x=patient_sample)) + 
+  geom_tile() + 
+  scale_fill_manual(values = pal_disease) + 
+  theme_void() +
+  labs(fill = "Disease")
+
+# number of clones
+hist_data <- table(df$patient_sample)%>% 
+  as.data.frame() 
+hist_data$Var1 <-  factor(hist_data$Var1, levels = df[, c("patient_sample", "disease")] %>% unique() %>% arrange(disease)%>% pull(patient_sample))
+
+p3 <- ggplot(hist_data, aes(y=Freq, x=Var1)) +
+  geom_bar(stat="identity") +
+  theme_minimal_hgrid() +
+  labs(y = "Number of clones") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank(), axis.title.x = element_blank())
+
+# patchwork
+(p3 + p2 + p1) +
+  plot_layout(heights = c(5, 0.5, 10), guides="collect") &
+  theme(legend.justification = "left")
+```
+
+Percentage of B cells that have a BCR (TRUE) and don't have one (FALSE).
+
+```{r results='markup'}
+table(!is.na(data$cloneType))
+round((table(!is.na(data$cloneType))/dim(data)[2])*100,2)
+```
+
+Clone size by cell type & disease
+
+```{r fig.width=9, fig.height = 9}
+dittoBarPlot(
+  data,
+  # subset(data, b_annot %in% c("NK"), invert = TRUE),
+  var = "cloneType",
+  group.by = "b_annot",
+  split.by = "disease",
+  scale = "percent"
+) +
+  coord_polar() +
+  scale_fill_manual(
+    values = pal_clones,
+    na.value= alpha("grey", 0.3)
+    ) +
+  theme(plot.title = element_blank(),
+        text = element_text(size = 12),
+        strip.text = element_text(size = 20)
+        ) +
+  NoLegend()
+```
+
+Top 10 clones by sample
+
+```{r}
+top_clones <- data@meta.data[, c("patient_sample", "disease", "Frequency", "CTaa")] %>% 
+  unique() %>% 
+  # filter(Frequency > 10) %>% 
+  arrange(desc(Frequency))
+rownames(top_clones) <- NULL
+
+
+top_clones <- top_clones %>%
+  group_by(patient_sample) %>% # Group by patient_sample and add a row number to each group
+  mutate(row_num = row_number()) %>% 
+  filter(row_num <= 10) %>% # Filter for the top 10 clones in each patient_sample group
+  mutate(top = paste0("top_", row_num)) # Create the "top" column with the labels
+
+# now add this to metadata of the Seurat object
+data$barcode <- rownames(data@meta.data)
+df_meta <- data@meta.data[, c("barcode", "patient_sample", "CTaa")]
+df_meta <- merge(df_meta, top_clones[, c("CTaa", "patient_sample", "top")], all.x = TRUE)
+rownames(df_meta) <- df_meta$barcode
+data <- AddMetaData(data, metadata = df_meta[,c("barcode", "top")])
+```
+
+```{r fig.height=7}
+# Reorder the levels of the "top" column
+data$top <- factor(data$top, levels = paste0("top_", 1:10))
+pat_ord <- data@meta.data[, c("patient_sample", "disease")] %>% arrange("disease") %>% unique() %>% pull(patient_sample)
+
+# Define a 10-color palette in shades of red and blue
+red_blue_palette <- c("#FF0000", "#FF5733", "#FFAD29", "#FFDC00", "#3384FF", "#4D88FF", "#669DFF", "#7EB2FF", "#99C7FF", "#B3DBFF")
+
+# barplot
+bp_data <- table(data@meta.data[, c("patient_sample", "disease", "top")]) %>% 
+  as.data.frame() %>% 
+  filter(Freq > 0)
+bp_data$patient_sample <-  factor(bp_data$patient_sample, levels = pat_ord)
+
+ggplot(bp_data, aes(fill=top, y=Freq, x=patient_sample)) +
+  geom_bar(stat="identity") +
+  facet_wrap(.~disease, scales = "free") +
+  theme_classic() +
+  labs(x = "Patient/sample", y = "Cells", fill = "Top clones") +
+  scale_fill_manual(values = red_blue_palette) +
+  theme(strip.text = element_text(size = 16)) +
+  RotatedAxis()
+```
+
+
+<a href="#top">Back to top</a>
+
+***
+
+```{r}
+sessionInfo()
 ```
 
