@@ -1,5 +1,5 @@
 # CSF project
-# read files and select B cells/plasma cells for downstream integration with scVI
+# read files and select myeloid cells for downstream integration with scVI
 # create merged object and save counts and metadata
 
 library(workflowr)
@@ -36,26 +36,28 @@ files <- purrr::map(subprojects, function(subproj){
 data <- purrr::map(files, function(f){
   tmp <- readRDS(f)
   print(unique(tmp$library))
-  cell_types <- grep(unique(tmp$annot), pattern = "B cell|Plasma|plasma", value = TRUE)
+  print(unique(tmp$annot))
+  cell_types <- grep(unique(tmp$annot), pattern = "Myeloid|myeloid|Macro|macro|mono|Mono|DC", value = TRUE)
   print(cell_types)
   tmp <- subset(tmp, annot %in% cell_types, return.null = TRUE)
+  print("***")
   tmp
 })
 data <- data[!sapply(data,is.null)]
 data <- merge(data[[1]], data[2:length(data)])
 
-out_dir <- glue("{proj_dir}/output/integration/B cells") %T>%
+out_dir <- glue("{proj_dir}/output/integration/Myeloid cells") %T>%
   dir.create()
 
 # save RDS object
-saveRDS(data, glue("{out_dir}/B_cells_merged.rds"))
+saveRDS(data, glue("{out_dir}/Myeloid_cells_merged.rds"))
 # save counts
 write.table(as.matrix(GetAssayData(object = data, slot = "counts")),
-            glue("{out_dir}/B_cells_counts.csv"),
-            sep = ',', row.names = T, col.names = T, quote = F)
+            glue("{out_dir}/Myeloid_cells_counts.csv"),
+            sep = ',', row.names = TRUE, col.names = TRUE, quote = FALSE)
 # save metadata
 write.table(
   data@meta.data,
-  glue("{out_dir}/B_cells_metadata.csv"),
+  glue("{out_dir}/Myeloid_cells_metadata.csv"),
   sep = ',', row.names = TRUE, col.names = TRUE, quote = FALSE
 )

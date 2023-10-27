@@ -1,5 +1,5 @@
 # CSF project
-# read files and select B cells/plasma cells for downstream integration with scVI
+# read files and select T cells for downstream integration with scVI
 # create merged object and save counts and metadata
 
 library(workflowr)
@@ -17,7 +17,7 @@ root_dir <- ifelse(
 )
 proj_dir <- glue("{root_dir}/projects/CSF")
 
-subprojects <- c("CSF_01", "CSF_02", "CSF_03", "CSF_04", "CSF_05") # , "CSF_06") leaving 6 out because of bad quality/low number of cells
+subprojects <- c("CSF_01", "CSF_02", "CSF_03", "CSF_04", "CSF_05" , "CSF_06")
 
 files <- purrr::map(subprojects, function(subproj){
   print(subproj)
@@ -33,29 +33,33 @@ files <- purrr::map(subprojects, function(subproj){
 
 }) %>% unlist()
 
+# files <- grep(files, pattern = "4619|8202", value = TRUE, invert = TRUE)
+
 data <- purrr::map(files, function(f){
   tmp <- readRDS(f)
   print(unique(tmp$library))
-  cell_types <- grep(unique(tmp$annot), pattern = "B cell|Plasma|plasma", value = TRUE)
+  print(unique(tmp$annot))
+  cell_types <- grep(unique(tmp$annot), pattern = "T cell|t cell|NK|nk|NKT", value = TRUE)
   print(cell_types)
   tmp <- subset(tmp, annot %in% cell_types, return.null = TRUE)
+  print("***")
   tmp
 })
 data <- data[!sapply(data,is.null)]
 data <- merge(data[[1]], data[2:length(data)])
 
-out_dir <- glue("{proj_dir}/output/integration/B cells") %T>%
+out_dir <- glue("{proj_dir}/output/integration/T cells") %T>%
   dir.create()
 
 # save RDS object
-saveRDS(data, glue("{out_dir}/B_cells_merged.rds"))
+saveRDS(data, glue("{out_dir}/T_cells_merged.rds"))
 # save counts
 write.table(as.matrix(GetAssayData(object = data, slot = "counts")),
-            glue("{out_dir}/B_cells_counts.csv"),
-            sep = ',', row.names = T, col.names = T, quote = F)
+            glue("{out_dir}/T_cells_counts.csv"),
+            sep = ',', row.names = TRUE, col.names = TRUE, quote = FALSE)
 # save metadata
 write.table(
   data@meta.data,
-  glue("{out_dir}/B_cells_metadata.csv"),
+  glue("{out_dir}/T_cells_metadata.csv"),
   sep = ',', row.names = TRUE, col.names = TRUE, quote = FALSE
 )

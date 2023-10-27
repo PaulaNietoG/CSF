@@ -1,4 +1,4 @@
-# B cell integration scVI
+# Myeloid integration scVI
 import os
 import sys
 
@@ -13,20 +13,12 @@ import torch
 import session_info
 import warnings
 
-torch.set_float32_matmul_precision('high')
-
-# Setting some parameters
-warnings.filterwarnings("ignore")
-
-scvi.settings.seed = 0
-print("Last run with scvi-tools version:", scvi.__version__)
-
 # **Load data**
 # We are creating an anndata object from pandas dataframes
 
 # load metadata and counts
-metadata = pd.read_csv('/scratch/devel/pnieto/projects/CSF/output/integration/B cells/B_cells_metadata.csv')
-counts = pd.read_csv('/scratch/devel/pnieto/projects/CSF/output/integration/B cells/B_cells_counts.csv')
+metadata = pd.read_csv('/scratch/devel/pnieto/projects/CSF/output/integration/Myeloid cells/Myeloid_cells_metadata.csv')
+counts = pd.read_csv('/scratch/devel/pnieto/projects/CSF/output/integration/Myeloid cells/Myeloid_cells_counts.csv')
 # set the row indices of gene_counts_df to match those of cell_metadata_df using the .reindex method
 counts = counts.reindex(columns=metadata.index)
 # Create an AnnData object
@@ -43,4 +35,4 @@ adata.obs[categorical_columns] = adata.obs[categorical_columns].astype(str)
 adata.obs[categorical_columns] = adata.obs[categorical_columns].fillna("")
 
 # save adata object
-adata.write('/scratch/devel/pnieto/projects/CSF/output/integration/B cells/B_cells_merged.h5ad', compression="gzip")
+adata.write('/scratch/devel/pnieto/projects/CSF/output/integration/Myeloid cells/Myeloid_cells_merged.h5ad', compression="gzip")
